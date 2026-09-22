@@ -1,0 +1,640 @@
+/* ============================================
+   VideoTeca - Estilos principales
+   Tema oscuro, responsive, moderno
+   ============================================ */
+
+:root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-card: #1a1a2e;
+    --bg-card-hover: #252540;
+    --text-primary: #e8e8e8;
+    --text-secondary: #a0a0b0;
+    --accent: #6c63ff;
+    --accent-hover: #5a52d5;
+    --accent-glow: rgba(108, 99, 255, 0.3);
+    --danger: #ff4757;
+    --success: #2ed573;
+    --warning: #ffa502;
+    --border: rgba(255, 255, 255, 0.08);
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --radius: 12px;
+    --transition: all 0.3s ease;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+}
+
+a {
+    color: var(--accent);
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+a:hover {
+    color: var(--accent-hover);
+}
+
+/* ============================================
+   Header / Navegación
+   ============================================ */
+
+header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+}
+
+.nav-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    gap: 30px;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent) !important;
+    white-space: nowrap;
+}
+
+.nav-links {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.nav-links a {
+    color: var(--text-secondary) !important;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.nav-links a:hover {
+    color: var(--text-primary) !important;
+}
+
+/* Dropdown */
+.dropdown {
+    position: relative;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    min-width: 180px;
+    padding: 8px 0;
+    box-shadow: var(--shadow);
+    z-index: 200;
+}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+.dropdown-content a {
+    display: block;
+    padding: 8px 16px;
+    color: var(--text-secondary) !important;
+}
+
+.dropdown-content a:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary) !important;
+}
+
+/* Search form */
+.search-form {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+}
+
+.search-form input {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    width: 200px;
+    transition: var(--transition);
+}
+
+.search-form input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.search-form button {
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: white;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: var(--transition);
+}
+
+.search-form button:hover {
+    background: var(--accent-hover);
+}
+
+/* ============================================
+   Main content
+   ============================================ */
+
+main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.section {
+    margin-bottom: 40px;
+}
+
+.section h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent);
+    display: inline-block;
+}
+
+.section h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 24px;
+}
+
+/* ============================================
+   Grid de películas
+   ============================================ */
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+.card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    background: var(--bg-card-hover);
+}
+
+.card-poster {
+    position: relative;
+    aspect-ratio: 2/3;
+    overflow: hidden;
+    background: var(--bg-secondary);
+}
+
+.card-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.card:hover .card-poster img {
+    transform: scale(1.05);
+}
+
+.card-poster-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    background: linear-gradient(135deg, var(--bg-secondary), var(--bg-card));
+}
+
+.card-rating {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.8);
+    color: var(--warning);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.card-info {
+    padding: 12px;
+}
+
+.card-info h3 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-info a {
+    color: var(--text-primary) !important;
+}
+
+.card-info a:hover {
+    color: var(--accent) !important;
+}
+
+.card-meta {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* ============================================
+   Hero / Swiper
+   ============================================ */
+
+.hero-section {
+    margin-bottom: 40px;
+    padding: 0 20px;
+}
+
+.swiper {
+    padding-bottom: 40px !important;
+}
+
+.swiper-slide .card {
+    margin: 0 auto;
+    max-width: 200px;
+}
+
+.swiper-pagination {
+    bottom: 0 !important;
+}
+
+/* ============================================
+   Detalle de película
+   ============================================ */
+
+.detail-section {
+    margin-bottom: 40px;
+}
+
+.detail-container {
+    display: flex;
+    gap: 30px;
+    flex-wrap: wrap;
+}
+
+.detail-main {
+    flex: 1;
+    min-width: 300px;
+}
+
+.detail-sidebar {
+    flex: 0 0 250px;
+}
+
+.detail-sidebar img {
+    width: 100%;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.video-player-wrapper {
+    margin-bottom: 24px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    background: #000;
+}
+
+.video-player-wrapper video {
+    display: block;
+    width: 100%;
+}
+
+.detail-rating {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--warning);
+}
+
+.detail-info {
+    flex: 1;
+    min-width: 300px;
+}
+
+.detail-info h1 {
+    font-size: 2rem;
+    margin-bottom: 16px;
+}
+
+.detail-meta {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    color: var(--text-secondary);
+}
+
+.detail-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.detail-meta a {
+    color: var(--accent) !important;
+}
+
+.detail-director,
+.detail-cast {
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+}
+
+.detail-sinopsis {
+    margin: 20px 0;
+    padding: 20px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+}
+
+.detail-sinopsis h3 {
+    margin-bottom: 8px;
+    color: var(--accent);
+}
+
+.detail-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+}
+
+.btn-play, .btn-watch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: var(--transition);
+}
+
+.btn-play {
+    background: var(--accent);
+    color: white !important;
+}
+
+.btn-play:hover {
+    background: var(--accent-hover);
+    transform: translateY(-2px);
+}
+
+.btn-watch {
+    background: var(--bg-card);
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border);
+}
+
+.btn-watch:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--accent);
+}
+
+/* ============================================
+   Paginación
+   ============================================ */
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 30px;
+    padding: 20px 0;
+}
+
+.page-btn {
+    padding: 8px 16px;
+    background: var(--bg-card);
+    color: var(--text-primary) !important;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    transition: var(--transition);
+}
+
+.page-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.page-info {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* ============================================
+   Botón cargar más
+   ============================================ */
+
+.load-more {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.btn-load {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 10px 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: var(--transition);
+}
+
+.btn-load:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+/* ============================================
+   No results / No data
+   ============================================ */
+
+.no-results,
+.no-data {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+}
+
+.no-data h1 {
+    font-size: 2.5rem;
+    color: var(--accent);
+    margin-bottom: 16px;
+}
+
+.no-data code {
+    background: var(--bg-card);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+/* ============================================
+   Footer
+   ============================================ */
+
+footer {
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    padding: 30px 20px;
+    margin-top: 60px;
+}
+
+.footer-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+
+@media (max-width: 768px) {
+    .nav-container {
+        flex-wrap: wrap;
+        height: auto;
+        padding: 12px 20px;
+        gap: 12px;
+    }
+
+    .search-form {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .search-form input {
+        flex: 1;
+        width: auto;
+    }
+
+    .grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+    }
+
+    .detail-container {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .detail-sidebar {
+        flex: none;
+        width: 200px;
+        margin: 0 auto;
+    }
+
+    .detail-info h1 {
+        font-size: 1.5rem;
+        text-align: center;
+    }
+
+    .detail-meta {
+        justify-content: center;
+    }
+
+    .detail-actions {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .card-info h3 {
+        font-size: 0.8rem;
+    }
+}
+
+/* ============================================
+   Video.js overrides
+   ============================================ */
+
+.video-js {
+    width: 100% !important;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.video-js .vjs-big-play-button {
+    background: var(--accent) !important;
+    border: none !important;
+    line-height: 2.5em;
+    border-radius: 50%;
+    width: 2em;
+    height: 2em;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* ============================================
+   Animaciones
+   ============================================ */
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.card {
+    animation: fadeIn 0.4s ease forwards;
+}

@@ -1,0 +1,49 @@
+<?php
+$titulo_pagina = $titulo_pagina ?? 'VideoTeca - Películas';
+$categoria_actual = $categoria_actual ?? '';
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= $titulo_pagina ?></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/video.js@8/dist/video-js.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="nav-container">
+                <a href="index.php" class="logo">🎬 VideoTeca</a>
+                <div class="nav-links">
+                    <a href="index.php">Inicio</a>
+                    <div class="dropdown">
+                        <span class="dropdown-toggle">Categorías ▾</span>
+                        <div class="dropdown-content">
+                            <a href="index.php#todas">Todas</a>
+                            <?php
+                            require_once 'includes/db.php';
+                            try {
+                                $stmt = db()->query("SELECT id, nombre FROM categorias ORDER BY nombre");
+                                while ($cat = $stmt->fetch()) {
+                                    echo '<a href="genre.php?categoria=' . urlencode($cat['id']) . '">' . htmlspecialchars($cat['nombre']) . '</a>';
+                                }
+                            } catch (Exception $e) {
+                                // BD no creada aún
+                            }
+                            ?>
+                        </div>
+                    </div>
+                </div>
+                <form class="search-form" method="GET" action="index.php">
+                    <input type="text" name="buscar" placeholder="Buscar películas..." value="<?= isset($_GET['buscar']) ? htmlspecialchars($_GET['buscar']) : '' ?>">
+                    <button type="submit">🔍</button>
+                </form>
+            </div>
+        </nav>
+    </header>
+    <main>
