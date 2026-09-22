@@ -43,6 +43,18 @@ CREATE TABLE `peliculas` (
     FOREIGN KEY (`categoria_id`) REFERENCES `categorias`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- Tabla de usuarios
+DROP TABLE IF EXISTS `usuarios`;
+CREATE TABLE `usuarios` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `username` VARCHAR(50) NOT NULL UNIQUE,
+    `email` VARCHAR(100) NOT NULL UNIQUE,
+    `password` VARCHAR(255) NOT NULL,
+    `is_admin` TINYINT(1) DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `last_login` TIMESTAMP NULL DEFAULT NULL
+) ENGINE=InnoDB;
+
 -- Tabla de vistas (historial detallado)
 DROP TABLE IF EXISTS `vistas`;
 CREATE TABLE `vistas` (

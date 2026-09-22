@@ -1,6 +1,8 @@
 <?php
 $titulo_pagina = $titulo_pagina ?? 'VideoTeca - Películas';
 $categoria_actual = $categoria_actual ?? '';
+require_once __DIR__ . '/auth.php';
+$user = is_logged_in() ? get_current_user() : null;
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -26,7 +28,6 @@ $categoria_actual = $categoria_actual ?? '';
                         <div class="dropdown-content">
                             <a href="index.php#todas">Todas</a>
                             <?php
-                            require_once 'includes/db.php';
                             try {
                                 $stmt = db()->query("SELECT id, nombre FROM categorias ORDER BY nombre");
                                 while ($cat = $stmt->fetch()) {
@@ -38,6 +39,20 @@ $categoria_actual = $categoria_actual ?? '';
                             ?>
                         </div>
                     </div>
+                    <?php if ($user): ?>
+                    <div class="dropdown">
+                        <span class="dropdown-toggle"><?php echo htmlspecialchars($user['username']); ?> ▾</span>
+                        <div class="dropdown-content">
+                            <?php if ($user['is_admin']): ?>
+                            <a href="admin.php">⚙️ Admin</a>
+                            <?php endif; ?>
+                            <a href="logout.php">🚪 Cerrar sesión</a>
+                        </div>
+                    </div>
+                    <?php else: ?>
+                    <a href="login.php">Iniciar sesión</a>
+                    <a href="register.php" class="btn-register">Registrarse</a>
+                    <?php endif; ?>
                 </div>
                 <form class="search-form" method="GET" action="index.php">
                     <input type="text" name="buscar" placeholder="Buscar películas..." value="<?= isset($_GET['buscar']) ? htmlspecialchars($_GET['buscar']) : '' ?>">

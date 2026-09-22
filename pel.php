@@ -1,5 +1,18 @@
 <?php
 require_once 'includes/db.php';
+require_once 'includes/auth.php';
+
+// Si la tabla de usuarios existe, requerir autenticación
+$auth_required = true;
+try {
+    db()->query("SELECT 1 FROM usuarios LIMIT 1");
+} catch (Exception $e) {
+    $auth_required = false;
+}
+
+if ($auth_required) {
+    require_auth();
+}
 
 $id = (int)($_GET['id'] ?? 0);
 
@@ -64,7 +77,7 @@ require_once 'includes/header.php';
                 $videoPath = VIDEO_PATH;
                 $archivo = $pelicula['archivo'];
                 $archivoCompleto = $videoPath . '/' . $archivo;
-                $urlVideo = 'video/' . urlencode($archivo);
+                $urlVideo = 'video/' . rawurlencode($archivo);
                 $extension = strtolower($pelicula['extension'] ?? '');
                 
                 // Determinar tipo MIME

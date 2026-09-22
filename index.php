@@ -1,4 +1,20 @@
 <?php
+require_once 'includes/db.php';
+require_once 'includes/auth.php';
+
+// Si la tabla de usuarios existe, requerir autenticación
+// Si no existe (instalación limpia), permitir acceso sin auth
+$auth_required = true;
+try {
+    db()->query("SELECT 1 FROM usuarios LIMIT 1");
+} catch (Exception $e) {
+    $auth_required = false;
+}
+
+if ($auth_required) {
+    require_auth();
+}
+
 // Intentar cargar db.php, pero no morir si falla
 $db_loaded = false;
 try {

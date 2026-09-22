@@ -261,6 +261,20 @@ foreach ($statements as $statement) {
 }
 log_msg('Tablas creadas correctamente.', 'green');
 
+// Crear usuario administrador por defecto
+log_msg('Creando usuario administrador...', 'cyan');
+$adminUser = obtener_entrada('Usuario administrador (default: admin)', 'admin');
+$adminPass = obtener_password('Contraseña de administrador');
+$adminEmail = obtener_entrada('Email de administrador', 'admin@videoteca.local');
+
+$adminHash = password_hash($adminPass, PASSWORD_BCRYPT, ['cost' => 12]);
+try {
+    $pdo->exec("INSERT INTO usuarios (username, email, password, is_admin) VALUES ('$adminUser', '$adminEmail', '$adminHash', 1)");
+    log_msg("Usuario administrador '$adminUser' creado.", 'green');
+} catch (PDOException $e) {
+    log_msg("ADVERTENCIA: No se pudo crear el usuario administrador (ya existe?).", 'yellow');
+}
+
 // ============================================================
 // PASO 3: Ruta de las películas
 // ============================================================
