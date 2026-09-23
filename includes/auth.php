@@ -3,7 +3,33 @@
  * Sistema de autenticación de usuarios
  */
 
-session_start();
+// Configurar directorio de sesiones antes de session_start()
+$sessionDir = __DIR__ . '/../sessions';
+if (!is_dir($sessionDir)) {
+    @mkdir($sessionDir, 0700, true);
+}
+if (is_dir($sessionDir)) {
+    ini_set('session.save_path', $sessionDir);
+}
+
+// Deshabilitar warnings de session_start para evitar problemas con Redis
+error_reporting(error_reporting() & ~E_WARNING);
+$sessionStarted = session_start();
+error_reporting(error_reporting() | E_WARNING);
+
+if (!$sessionStarted) {
+    // Fallback: usar cookies si las sesiones no funcionan
+    if (!isset($_COOKIE['SESSION_ID'])) {
+        session_create_id();
+        setcookie(session_name(), session_id(), [
+            'lifetime' => 0,
+            'path' => '/',
+            'secure' => isset($_SERVER['HTTPS']),
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+    }
+}
 
 function require_auth() {
     if (!isset($_SESSION['user_id'])) {

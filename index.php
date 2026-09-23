@@ -1,12 +1,12 @@
 <?php
-require_once 'includes/db.php';
 require_once 'includes/auth.php';
+require_once 'includes/db.php';
 
-// Si la tabla de usuarios existe, requerir autenticación
-// Si no existe (instalación limpia), permitir acceso sin auth
-$auth_required = true;
+// Verificar si la tabla de usuarios existe (requiere autenticación)
+$auth_required = false;
 try {
-    db()->query("SELECT 1 FROM usuarios LIMIT 1");
+    $check = db()->query("SELECT 1 FROM usuarios LIMIT 1");
+    $auth_required = $check->rowCount() >= 0;
 } catch (Exception $e) {
     $auth_required = false;
 }
@@ -16,13 +16,7 @@ if ($auth_required) {
 }
 
 // Intentar cargar db.php, pero no morir si falla
-$db_loaded = false;
-try {
-    require_once 'includes/db.php';
-    $db_loaded = true;
-} catch (Exception $e) {
-    $db_loaded = false;
-}
+$db_loaded = true;
 
 // Obtener categorías
 $categorias = [];

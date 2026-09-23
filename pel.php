@@ -1,11 +1,12 @@
 <?php
-require_once 'includes/db.php';
 require_once 'includes/auth.php';
+require_once 'includes/db.php';
 
-// Si la tabla de usuarios existe, requerir autenticación
-$auth_required = true;
+// Verificar si la tabla de usuarios existe (requiere autenticación)
+$auth_required = false;
 try {
-    db()->query("SELECT 1 FROM usuarios LIMIT 1");
+    $check = db()->query("SELECT 1 FROM usuarios LIMIT 1");
+    $auth_required = $check->rowCount() >= 0;
 } catch (Exception $e) {
     $auth_required = false;
 }
@@ -77,7 +78,12 @@ require_once 'includes/header.php';
                 $videoPath = VIDEO_PATH;
                 $archivo = $pelicula['archivo'];
                 $archivoCompleto = $videoPath . '/' . $archivo;
-                $urlVideo = 'video/' . rawurlencode($archivo);
+                
+                // Construir URL relativa: codificar solo el nombre del archivo, no la ruta
+                $parts = explode('/', $archivo);
+                $nombreArchivo = end($parts);
+                $nombreCategoria = reset($parts);
+                $urlVideo = 'video/' . rawurlencode($nombreCategoria) . '/' . rawurlencode($nombreArchivo);
                 $extension = strtolower($pelicula['extension'] ?? '');
                 
                 // Determinar tipo MIME
@@ -95,23 +101,14 @@ require_once 'includes/header.php';
                 ?>
                 
                 <video
-                    id="video-player"
-                    class="video-js vjs-big-play-centered vjs-theme-fantasy"
                     controls
                     preload="auto"
                     width="100%"
-                    data-setup='{}'
+                    style="background: #000; max-height: 500px;"
+                    poster="<?php echo !empty($pelicula['poster']) ? htmlspecialchars($pelicula['poster']) : ''; ?>"
                 >
                     <source src="<?php echo htmlspecialchars($urlVideo); ?>" type="<?php echo $mimeType; ?>">
-                    <?php if ($extension === 'mkv'): ?>
-                    <p>Tu navegador no soporta video embebido. 
-                       <a href="<?php echo htmlspecialchars($urlVideo); ?>" target="_blank">Descargar o reproducir en nuevo tab</a>
-                    </p>
-                    <?php else: ?>
-                    <p>Tu navegador no soporta la etiqueta de video. 
-                       <a href="<?php echo htmlspecialchars($urlVideo); ?>" target="_blank">Reproducir aquí</a>
-                    </p>
-                    <?php endif; ?>
+                    Tu navegador no soporta este formato de video.
                 </video>
             </div>
 
@@ -155,12 +152,12 @@ require_once 'includes/header.php';
                     <a href="<?php echo htmlspecialchars($urlVideo); ?>" 
                        download
                        class="btn-play">
-                        ⬇️ Descargar
+                         ⬇️ Descargar
                     </a>
                     <a href="<?php echo htmlspecialchars($urlVideo); ?>" 
                        target="_blank"
                        class="btn-watch">
-                        ▶️ Reproducir
+                         ▶️ Reproducir en nueva pestaña
                     </a>
                 </div>
             </div>
