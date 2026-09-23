@@ -1,0 +1,20 @@
+# Configuración sensible (nunca subir al repositorio)
+includes/config.php
+
+# Sesiones
+sessions/
+
+# Logs
+*.log
+tmp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
