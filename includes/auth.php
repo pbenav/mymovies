@@ -21,9 +21,10 @@ if (!$sessionStarted) {
     // Fallback: usar cookies si las sesiones no funcionan
     if (!isset($_COOKIE['SESSION_ID'])) {
         session_create_id();
+        $cookieParams = session_get_cookie_params();
         setcookie(session_name(), session_id(), [
-            'lifetime' => 0,
-            'path' => '/',
+            'expires' => time() + 86400,
+            'path' => $cookieParams['path'] ?? '/',
             'secure' => isset($_SERVER['HTTPS']),
             'httponly' => true,
             'samesite' => 'Lax'

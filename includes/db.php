@@ -71,16 +71,38 @@ function obtener_info_pelicula_tmdb($titulo) {
     if (empty($titulo)) return null;
 
     $titulo_limpio = $titulo;
-    $basura = ['spanish', 'castellano', 'latino', 'english', 'subs', 
+    
+    // Eliminar URLs completas (ej: www.lokotorrents.com, http://...)
+    $titulo_limpio = preg_replace('#https?://\S+#i', '', $titulo_limpio);
+    $titulo_limpio = preg_replace('#www\.\S+#i', '', $titulo_limpio);
+    
+    // Eliminar dominios y nombres de sitios
+    $titulo_limpio = preg_replace('#\.(com|org|net|es|tv|co)\b#i', '', $titulo_limpio);
+    
+    // Eliminar palabras de formato y calidad
+    $basura = ['spanish', 'castellano', 'latino', 'english', 'ingles', 'subs', 
                '1080p', '720p', '4k', 'uhd', 'bluray', 'bdrip', 'brrip',
                'xvid', 'h264', 'h265', 'x264', 'hevc', 'ac3', 'dts',
-               'microhd', 'web-dl', 'webdl', 'dvdrip', 'dvdscreener'];
+               'microhd', 'web-dl', 'webdl', 'dvdrip', 'dvdscreener',
+               'vidmono', 'vidomon', 'torrent', 'download', 'free'];
 
     foreach ($basura as $palabra) {
-        $titulo_limpio = preg_replace('/\b' . $palabra . '\b/i', '', $titulo_limpio);
+        $titulo_limpio = preg_replace('/\b' . preg_quote($palabra, '/') . '\b/i', '', $titulo_limpio);
     }
+    
+    // Eliminar todo entre paréntesis y corchetes (incluyendo años dentro de ellos)
     $titulo_limpio = preg_replace('/\s*[\(\[].*?[\)\]]/', '', $titulo_limpio);
+    
+    // Eliminar años sueltos al final (ej: "Pelicula 1991" -> "Pelicula")
+    $titulo_limpio = preg_replace('/\s+\d{4}\s*$/', '', $titulo_limpio);
+    
+    // Eliminar puntos y comas sobrantes
+    $titulo_limpio = str_replace(['.', ','], '', $titulo_limpio);
+    
+    // Limpiar espacios múltiples
     $titulo_limpio = trim(preg_replace('/\s+/', ' ', $titulo_limpio));
+
+    if (empty($titulo_limpio)) return null;
 
     $query = urlencode($titulo_limpio);
     $url = TMDB_BASE_URL . "/search/movie?api_key=" . TMDB_API_KEY . "&query={$query}&language=" . TMDB_LANG;
