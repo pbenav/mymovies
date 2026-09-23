@@ -2,7 +2,7 @@
 $titulo_pagina = $titulo_pagina ?? 'VideoTeca - Películas';
 $categoria_actual = $categoria_actual ?? '';
 require_once __DIR__ . '/auth.php';
-$user = is_logged_in() ? get_current_user() : null;
+$user = is_logged_in() ? get_logged_user() : null;
 ?>
 <!DOCTYPE html>
 <html lang="es">

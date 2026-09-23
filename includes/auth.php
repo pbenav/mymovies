@@ -17,7 +17,7 @@ function is_logged_in() {
     return isset($_SESSION['user_id']);
 }
 
-function get_current_user() {
+function get_logged_user() {
     if (!isset($_SESSION['user_id'])) return null;
     
     try {
