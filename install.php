@@ -44,6 +44,7 @@ function esperar_tecla($mensaje = 'Presiona Enter para continuar...') {
 
 function obtener_entrada($pregunta, $default = null) {
     $prompt = $default !== null ? "$pregunta [$default]: " : "$pregunta: ";
+    echo $prompt;
     $handle = fopen("php://stdin", "r");
     $line = fgets($handle);
     fclose($handle);
