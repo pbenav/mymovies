@@ -51,6 +51,8 @@ CREATE TABLE `usuarios` (
     `email` VARCHAR(100) NOT NULL UNIQUE,
     `password` VARCHAR(255) NOT NULL,
     `is_admin` TINYINT(1) DEFAULT 0,
+    `activo` TINYINT(1) DEFAULT 0,
+    `perfil` ENUM('admin', 'usuario') DEFAULT 'usuario',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `last_login` TIMESTAMP NULL DEFAULT NULL
 ) ENGINE=InnoDB;

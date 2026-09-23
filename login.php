@@ -12,6 +12,16 @@ if (is_logged_in()) {
 $error = '';
 $success = '';
 
+// Verificar si viene de un registro pendiente
+if (isset($_GET['pending'])) {
+    $success = 'Tu cuenta ha sido creada. Espera a que un administrador la active.';
+}
+
+// Verificar si viene de cuenta inactiva
+if (isset($_GET['error']) && $_GET['error'] === 'inactive') {
+    $error = 'Tu cuenta está inactiva. Contacta a un administrador.';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
@@ -26,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $result = login($username, $password);
         
-        if ($result) {
+        if ($result === true) {
             // Verificar que la sesión se guardó
             if (!isset($_SESSION['user_id'])) {
                 $error = 'Error: la sesión no se pudo guardar. Verifica permisos de sessions/';
@@ -35,6 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header("Location: $redirect");
                 exit;
             }
+        } elseif ($result === 'inactive') {
+            $error = 'Tu cuenta está inactiva. Contacta a un administrador para que la active.';
         } else {
             $error = 'Usuario o contraseña incorrectos.';
         }

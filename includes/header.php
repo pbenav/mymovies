@@ -43,6 +43,7 @@ $user = is_logged_in() ? get_logged_user() : null;
                         <span class="dropdown-toggle"><?php echo htmlspecialchars($user['username']); ?> ▾</span>
                         <div class="dropdown-content">
                             <?php if ($user['is_admin']): ?>
+                            <a href="admin/users.php">👥 Usuarios</a>
                             <a href="admin.php">⚙️ Admin</a>
                             <?php endif; ?>
                             <a href="logout.php">🚪 Cerrar sesión</a>

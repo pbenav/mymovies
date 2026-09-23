@@ -38,6 +38,24 @@ function require_auth() {
         header("Location: login.php?redirect=$redirect");
         exit;
     }
+    
+    // Verificar que la cuenta esté activada
+    if (!is_account_activated($_SESSION['user_id'])) {
+        session_destroy();
+        header("Location: login.php?error=inactive");
+        exit;
+    }
+}
+
+function is_account_activated($userId) {
+    try {
+        $stmt = db()->prepare("SELECT activo FROM usuarios WHERE id = :id");
+        $stmt->execute([':id' => $userId]);
+        $user = $stmt->fetch();
+        return $user && $user['activo'] == 1;
+    } catch (Exception $e) {
+        return true; // Si no se puede verificar, permitir acceso
+    }
 }
 
 function is_logged_in() {
@@ -48,7 +66,7 @@ function get_logged_user() {
     if (!isset($_SESSION['user_id'])) return null;
     
     try {
-        $stmt = db()->prepare("SELECT id, username, email, is_admin, created_at, last_login FROM usuarios WHERE id = :id");
+        $stmt = db()->prepare("SELECT id, username, email, is_admin, activo, perfil, created_at, last_login FROM usuarios WHERE id = :id");
         $stmt->execute([':id' => $_SESSION['user_id']]);
         return $stmt->fetch();
     } catch (Exception $e) {
@@ -58,23 +76,31 @@ function get_logged_user() {
 
 function login($username, $password) {
     try {
-        $stmt = db()->prepare("SELECT id, username, password, is_admin FROM usuarios WHERE username = :username LIMIT 1");
+        $stmt = db()->prepare("SELECT id, username, password, is_admin, activo FROM usuarios WHERE username = :username LIMIT 1");
         $stmt->execute([':username' => $username]);
         $user = $stmt->fetch();
         
-        if ($user && password_verify($password, $user['password'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['is_admin'] = (bool)$user['is_admin'];
-            
-            // Actualizar last_login
-            $update = db()->prepare("UPDATE usuarios SET last_login = NOW() WHERE id = :id");
-            $update->execute([':id' => $user['id']]);
-            
-            return true;
+        if (!$user) {
+            return false;
         }
         
-        return false;
+        if (!password_verify($password, $user['password'])) {
+            return false;
+        }
+        
+        if ($user['activo'] != 1) {
+            return 'inactive';
+        }
+        
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['username'] = $user['username'];
+        $_SESSION['is_admin'] = (bool)$user['is_admin'];
+        
+        // Actualizar last_login
+        $update = db()->prepare("UPDATE usuarios SET last_login = NOW() WHERE id = :id");
+        $update->execute([':id' => $user['id']]);
+        
+        return true;
     } catch (Exception $e) {
         error_log("Login error: " . $e->getMessage());
         return false;
@@ -111,19 +137,92 @@ function register($username, $email, $password) {
             return ['error' => 'El nombre de usuario o email ya está registrado.'];
         }
         
-        // Insertar usuario
+        // Insertar usuario como inactivo (pendiente de aprobación)
         $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-        $stmt = db()->prepare("INSERT INTO usuarios (username, email, password) VALUES (:username, :email, :password)");
+        $stmt = db()->prepare("INSERT INTO usuarios (username, email, password, activo, perfil) VALUES (:username, :email, :password, 0, 'usuario')");
         $stmt->execute([
             ':username' => $username,
             ':email' => $email,
             ':password' => $hash
         ]);
         
-        return ['success' => true];
+        return ['success' => true, 'pending' => true];
     } catch (Exception $e) {
         error_log("Register error: " . $e->getMessage());
         return ['error' => 'Error al registrar. Inténtalo de nuevo.'];
+    }
+}
+
+function activate_user($userId) {
+    try {
+        $stmt = db()->prepare("UPDATE usuarios SET activo = 1 WHERE id = :id");
+        $stmt->execute([':id' => $userId]);
+        return true;
+    } catch (Exception $e) {
+        error_log("Activate user error: " . $e->getMessage());
+        return false;
+    }
+}
+
+function deactivate_user($userId) {
+    try {
+        $stmt = db()->prepare("UPDATE usuarios SET activo = 0 WHERE id = :id");
+        $stmt->execute([':id' => $userId]);
+        return true;
+    } catch (Exception $e) {
+        error_log("Deactivate user error: " . $e->getMessage());
+        return false;
+    }
+}
+
+function update_user($userId, $username, $email, $password, $is_admin, $activo) {
+    try {
+        if (!empty($password)) {
+            $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+            $stmt = db()->prepare("UPDATE usuarios SET username = :username, email = :email, password = :password, is_admin = :is_admin, activo = :activo WHERE id = :id");
+            $stmt->execute([
+                ':username' => $username,
+                ':email' => $email,
+                ':password' => $hash,
+                ':is_admin' => $is_admin ? 1 : 0,
+                ':activo' => $activo ? 1 : 0,
+                ':id' => $userId
+            ]);
+        } else {
+            $stmt = db()->prepare("UPDATE usuarios SET username = :username, email = :email, is_admin = :is_admin, activo = :activo WHERE id = :id");
+            $stmt->execute([
+                ':username' => $username,
+                ':email' => $email,
+                ':is_admin' => $is_admin ? 1 : 0,
+                ':activo' => $activo ? 1 : 0,
+                ':id' => $userId
+            ]);
+        }
+        return true;
+    } catch (Exception $e) {
+        error_log("Update user error: " . $e->getMessage());
+        return false;
+    }
+}
+
+function delete_user($userId) {
+    try {
+        $stmt = db()->prepare("DELETE FROM usuarios WHERE id = :id");
+        $stmt->execute([':id' => $userId]);
+        return true;
+    } catch (Exception $e) {
+        error_log("Delete user error: " . $e->getMessage());
+        return false;
+    }
+}
+
+function get_all_users() {
+    try {
+        $stmt = db()->query("SELECT id, username, email, is_admin, activo, perfil, created_at, last_login FROM usuarios ORDER BY created_at DESC");
+        return $stmt->fetchAll();
+    } catch (Exception $e) {
+        error_log("Get users error: " . $e->getMessage());
+        return [];
     }
 }
 
