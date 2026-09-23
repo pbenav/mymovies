@@ -1,6 +1,6 @@
 <?php
-require_once 'includes/db.php';
 require_once 'includes/auth.php';
+require_once 'includes/db.php';
 
 // Si ya está logueado, redirigir
 if (is_logged_in()) {
@@ -19,10 +19,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($username) || empty($password)) {
         $error = 'Completa todos los campos.';
     } else {
-        if (login($username, $password)) {
-            $redirect = $_POST['redirect'] ?? 'index.php';
-            header("Location: $redirect");
-            exit;
+        // Forzar session_start por si acaso
+        if (!session_id()) {
+            session_start();
+        }
+        
+        $result = login($username, $password);
+        
+        if ($result) {
+            // Verificar que la sesión se guardó
+            if (!isset($_SESSION['user_id'])) {
+                $error = 'Error: la sesión no se pudo guardar. Verifica permisos de sessions/';
+            } else {
+                $redirect = $_POST['redirect'] ?? 'index.php';
+                header("Location: $redirect");
+                exit;
+            }
         } else {
             $error = 'Usuario o contraseña incorrectos.';
         }
