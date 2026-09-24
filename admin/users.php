@@ -88,7 +88,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'date_start' => $_POST['date_start'] ?? null,
                         'date_end' => $_POST['date_end'] ?? null
                     ];
-                    save_access_rules($update_id, $accessData);
+                    $existingRule = get_access_rules($update_id);
+                    if (!empty($existingRule)) {
+                        update_access_rule($update_id, $existingRule[0]['id'], $accessData);
+                    } else {
+                        create_access_rule($update_id, $accessData);
+                    }
                     
                     $message = 'Usuario actualizado correctamente.';
                     $messageType = 'success';
