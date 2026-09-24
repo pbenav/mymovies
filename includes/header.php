@@ -3,6 +3,12 @@ $titulo_pagina = $titulo_pagina ?? 'VideoTeca - Películas';
 $categoria_actual = $categoria_actual ?? '';
 require_once __DIR__ . '/auth.php';
 $user = is_logged_in() ? get_logged_user() : null;
+
+// Detectar si estamos en una subcarpeta para ajustar rutas relativas
+$base = '';
+if (strpos($_SERVER['PHP_SELF'], '/admin/') !== false) {
+    $base = '../';
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -13,7 +19,10 @@ $user = is_logged_in() ? get_logged_user() : null;
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="<?= $base ?>css/style.css">
+    <?php if (isset($extra_css)): ?>
+        <?= $extra_css ?>
+    <?php endif; ?>
 </head>
 <body>
     <header>

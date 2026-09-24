@@ -153,10 +153,9 @@ if ($action === 'edit' && $id > 0) {
 }
 
 $titulo_pagina = 'Administración de Usuarios - VideoTeca';
+$extra_css = '<link rel="stylesheet" href="../css/admin.css">';
 require_once '../includes/header.php';
 ?>
-
-<link rel="stylesheet" href="../css/admin.css">
 
 <div class="admin-container">
     <div class="admin-header">
