@@ -17,9 +17,10 @@ if (isset($_GET['pending'])) {
     $success = 'Tu cuenta ha sido creada. Espera a que un administrador la active.';
 }
 
-// Verificar si viene de cuenta inactiva
-if (isset($_GET['error']) && $_GET['error'] === 'inactive') {
-    $error = 'Tu cuenta está inactiva. Contacta a un administrador.';
+// Verificar si viene de cuenta inactiva o reglas de acceso
+if (isset($_GET['error'])) {
+    $errorCode = $_GET['error'];
+    $error = get_access_error_message($errorCode);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -45,8 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header("Location: $redirect");
                 exit;
             }
-        } elseif ($result === 'inactive') {
-            $error = 'Tu cuenta está inactiva. Contacta a un administrador para que la active.';
+        } elseif ($result === 'inactive' || $result === 'access_denied') {
+            if ($result === 'access_denied') {
+                $error = 'No tienes permiso para acceder en este horario o día. Consulta con el administrador.';
+            } else {
+                $error = 'Tu cuenta está inactiva. Contacta a un administrador para que la active.';
+            }
         } else {
             $error = 'Usuario o contraseña incorrectos.';
         }

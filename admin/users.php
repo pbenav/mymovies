@@ -78,6 +78,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ':id' => $update_id
                         ]);
                     }
+                    
+                    // Guardar reglas de acceso
+                    $accessData = [
+                        'enabled' => isset($_POST['access_enabled']),
+                        'start_time' => $_POST['start_time'] ?? '00:00:00',
+                        'end_time' => $_POST['end_time'] ?? '23:59:59',
+                        'days' => $_POST['days'] ?? [],
+                        'date_start' => $_POST['date_start'] ?? null,
+                        'date_end' => $_POST['date_end'] ?? null
+                    ];
+                    save_access_rules($update_id, $accessData);
+                    
                     $message = 'Usuario actualizado correctamente.';
                     $messageType = 'success';
                 } catch (Exception $e) {
@@ -143,12 +155,16 @@ $users = get_all_users();
 
 // Si hay acción de editar, obtener el usuario
 $edit_user = null;
+$access_rules = null;
 if ($action === 'edit' && $id > 0) {
     foreach ($users as $user) {
         if ($user['id'] == $id) {
             $edit_user = $user;
             break;
         }
+    }
+    if ($edit_user) {
+        $access_rules = get_access_rules($edit_user['id']);
     }
 }
 
@@ -262,6 +278,61 @@ require_once '../includes/header.php';
                 <label for="activo">Cuenta Activada</label>
             </div>
             
+            <div class="access-rules-section">
+                <h3>Reglas de Acceso</h3>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="access_enabled" name="access_enabled" <?php echo $edit_user && !empty($access_rules) && $access_rules['enabled'] ? 'checked' : ($edit_user && empty($access_rules) ? 'checked' : ''); ?>>
+                    <label for="access_enabled">Aplicar restricciones de acceso</label>
+                </div>
+                
+                <div class="access-fields">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="start_time">Hora Inicio</label>
+                            <input type="time" id="start_time" name="start_time" value="<?php echo $edit_user && !empty($access_rules) ? $access_rules['start_time'] : '00:00'; ?>">
+                        </div>
+                        <div class="form-group">
+                            <label for="end_time">Hora Fin</label>
+                            <input type="time" id="end_time" name="end_time" value="<?php echo $edit_user && !empty($access_rules) ? $access_rules['end_time'] : '23:59'; ?>">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Días Permitidos</label>
+                        <div class="days-checkboxes">
+                            <?php
+                            $dias = ['Lun' => 1, 'Mar' => 2, 'Mié' => 3, 'Jue' => 4, 'Vie' => 5, 'Sáb' => 6, 'Dom' => 7];
+                            foreach ($dias as $nombre => $valor):
+                                $checked = '';
+                                if (!empty($access_rules) && $access_rules['days']):
+                                    $pos = $valor - 1;
+                                    $checked = ($access_rules['days'][$pos] === '1') ? 'checked' : '';
+                                else:
+                                    $checked = 'checked'; // Todos activados por defecto
+                                endif;
+                            ?>
+                                <label class="day-checkbox">
+                                    <input type="checkbox" name="days[]" value="<?php echo $valor; ?>" <?php echo $checked; ?>>
+                                    <?php echo $nombre; ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="date_start">Fecha Inicio</label>
+                            <input type="date" id="date_start" name="date_start" value="<?php echo $edit_user && !empty($access_rules) && $access_rules['date_start'] ? $access_rules['date_start'] : ''; ?>">
+                        </div>
+                        <div class="form-group">
+                            <label for="date_end">Fecha Fin</label>
+                            <input type="date" id="date_end" name="date_end" value="<?php echo $edit_user && !empty($access_rules) && $access_rules['date_end'] ? $access_rules['date_end'] : ''; ?>">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" onclick="closeModal()">Cancelar</button>
                 <button type="submit" class="btn-submit">Guardar</button>
@@ -281,7 +352,7 @@ function openModal() {
     document.getElementById('activo').checked = true;
 }
 
-function editUser(id, username, email, isAdmin, activo) {
+function editUser(id, username, email, isAdmin, activo, accessRules) {
     document.getElementById('userModal').classList.add('active');
     document.getElementById('modalTitle').textContent = 'Editar Usuario';
     document.getElementById('formAction').value = 'update';
@@ -292,6 +363,32 @@ function editUser(id, username, email, isAdmin, activo) {
     document.getElementById('password').required = false;
     document.getElementById('is_admin').checked = isAdmin == 1;
     document.getElementById('activo').checked = activo == 1;
+    
+    // Cargar reglas de acceso
+    if (accessRules) {
+        document.getElementById('access_enabled').checked = accessRules.enabled == 1;
+        document.getElementById('start_time').value = accessRules.start_time ? accessRules.start_time.substring(0, 5) : '00:00';
+        document.getElementById('end_time').value = accessRules.end_time ? accessRules.end_time.substring(0, 5) : '23:59';
+        document.getElementById('date_start').value = accessRules.date_start || '';
+        document.getElementById('date_end').value = accessRules.date_end || '';
+        
+        // Cargar días
+        var days = accessRules.days || '1111111';
+        var checkboxes = document.querySelectorAll('input[name="days[]"]');
+        checkboxes.forEach(function(cb) {
+            var index = parseInt(cb.value) - 1;
+            cb.checked = days[index] === '1';
+        });
+    } else {
+        // Por defecto: todos los días, horario completo
+        document.getElementById('access_enabled').checked = true;
+        document.getElementById('start_time').value = '00:00';
+        document.getElementById('end_time').value = '23:59';
+        var checkboxes = document.querySelectorAll('input[name="days[]"]');
+        checkboxes.forEach(function(cb) {
+            cb.checked = true;
+        });
+    }
 }
 
 function closeModal() {
@@ -312,7 +409,8 @@ document.getElementById('userModal').addEventListener('click', function(e) {
         '<?php echo addslashes($edit_user['username']); ?>',
         '<?php echo addslashes($edit_user['email']); ?>',
         <?php echo $edit_user['is_admin']; ?>,
-        <?php echo $edit_user['activo']; ?>
+        <?php echo $edit_user['activo']; ?>,
+        <?php echo $access_rules ? json_encode($access_rules) : 'null'; ?>
     );
 <?php endif; ?>
 </script>

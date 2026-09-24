@@ -243,3 +243,77 @@
     font-weight: 600;
     cursor: pointer;
 }
+
+/* Access Rules Section */
+.access-rules-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #00d4ff;
+}
+
+.access-rules-section h3 {
+    color: #00d4ff;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.access-fields {
+    margin-top: 1rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.days-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.day-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.8rem;
+    background: #16213e;
+    border-radius: 6px;
+    border: 1px solid #333;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.day-checkbox:hover {
+    border-color: #00d4ff;
+    background: #1a2a4a;
+}
+
+.day-checkbox input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.day-checkbox input[type="time"],
+.day-checkbox input[type="date"] {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #333;
+    border-radius: 6px;
+    background: #16213e;
+    color: #fff;
+    font-size: 0.9rem;
+}
+
+.form-group input[type="time"],
+.form-group input[type="date"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #333;
+    border-radius: 6px;
+    background: #16213e;
+    color: #fff;
+    font-size: 0.95rem;
+}

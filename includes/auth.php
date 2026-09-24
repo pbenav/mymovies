@@ -45,6 +45,14 @@ function require_auth() {
         header("Location: login.php?error=inactive");
         exit;
     }
+    
+    // Verificar reglas de acceso (horario, días, fechas)
+    $accessResult = check_access_rules($_SESSION['user_id']);
+    if ($accessResult !== true) {
+        session_destroy();
+        header("Location: login.php?error=" . urlencode($accessResult));
+        exit;
+    }
 }
 
 function is_account_activated($userId) {
@@ -90,6 +98,12 @@ function login($username, $password) {
         
         if ($user['activo'] != 1) {
             return 'inactive';
+        }
+        
+        // Verificar reglas de acceso
+        $accessResult = check_access_rules($user['id']);
+        if ($accessResult !== true) {
+            return 'access_denied';
         }
         
         $_SESSION['user_id'] = $user['id'];
@@ -237,4 +251,130 @@ function require_admin() {
         header('Location: index.php');
         exit;
     }
+}
+
+// ==================== ACCESS RULES ====================
+
+function get_access_rules($userId) {
+    try {
+        $stmt = db()->prepare("SELECT * FROM access_rules WHERE user_id = :user_id LIMIT 1");
+        $stmt->execute([':user_id' => $userId]);
+        return $stmt->fetch();
+    } catch (Exception $e) {
+        error_log("Get access rules error: " . $e->getMessage());
+        return null;
+    }
+}
+
+function save_access_rules($userId, $data) {
+    try {
+        $enabled = isset($data['enabled']) ? 1 : 0;
+        $startTime = $data['start_time'] ?? '00:00:00';
+        $endTime = $data['end_time'] ?? '23:59:59';
+        $days = isset($data['days']) ? implode('', $data['days']) : '1111111';
+        $dateStart = $data['date_start'] ?? null;
+        $dateEnd = $data['date_end'] ?? null;
+        
+        // Si no hay regla, crear una nueva
+        $existing = get_access_rules($userId);
+        
+        if (!$existing) {
+            $stmt = db()->prepare("
+                INSERT INTO access_rules (user_id, enabled, start_time, end_time, days, date_start, date_end)
+                VALUES (:user_id, :enabled, :start_time, :end_time, :days, :date_start, :date_end)
+            ");
+            $stmt->execute([
+                ':user_id' => $userId,
+                ':enabled' => $enabled,
+                ':start_time' => $startTime,
+                ':end_time' => $endTime,
+                ':days' => $days,
+                ':date_start' => $dateStart,
+                ':date_end' => $dateEnd
+            ]);
+        } else {
+            $stmt = db()->prepare("
+                UPDATE access_rules 
+                SET enabled = :enabled, start_time = :start_time, end_time = :end_time, 
+                    days = :days, date_start = :date_start, date_end = :date_end
+                WHERE user_id = :user_id
+            ");
+            $stmt->execute([
+                ':enabled' => $enabled,
+                ':start_time' => $startTime,
+                ':end_time' => $endTime,
+                ':days' => $days,
+                ':date_start' => $dateStart,
+                ':date_end' => $dateEnd,
+                ':user_id' => $userId
+            ]);
+        }
+        
+        return true;
+    } catch (Exception $e) {
+        error_log("Save access rules error: " . $e->getMessage());
+        return false;
+    }
+}
+
+function check_access_rules($userId) {
+    try {
+        $rules = get_access_rules($userId);
+        
+        // Si no hay reglas, permitir acceso
+        if (!$rules) {
+            return true;
+        }
+        
+        // Si las reglas están desactivadas, permitir acceso
+        if (!$rules['enabled']) {
+            return true;
+        }
+        
+        $now = new DateTime();
+        $currentHour = $now->format('H:i:s');
+        $currentDay = (int)$now->format('N'); // 1=Lunes, 7=Domingo
+        $currentDate = $now->format('Y-m-d');
+        
+        // Verificar horario
+        if ($rules['start_time'] !== '00:00:00' || $rules['end_time'] !== '23:59:59') {
+            if ($currentHour < $rules['start_time'] || $currentHour > $rules['end_time']) {
+                return 'outside_hours';
+            }
+        }
+        
+        // Verificar días de la semana
+        // days = '1111111' donde cada posición es un día (Lun-Dom)
+        $dayIndex = $currentDay - 1; // Convertir a índice 0-6
+        $dayString = $rules['days'];
+        if (strlen($dayString) === 7 && $dayString[$dayIndex] === '0') {
+            return 'day_not_allowed';
+        }
+        
+        // Verificar fechas de inicio/fin
+        if ($rules['date_start'] && $currentDate < $rules['date_start']) {
+            return 'not_started';
+        }
+        
+        if ($rules['date_end'] && $currentDate > $rules['date_end']) {
+            return 'expired';
+        }
+        
+        return true;
+    } catch (Exception $e) {
+        error_log("Check access rules error: " . $e->getMessage());
+        return true; // Si hay error, permitir acceso
+    }
+}
+
+function get_access_error_message($errorCode) {
+    $messages = [
+        'inactive' => 'Tu cuenta está pendiente de aprobación por un administrador. Serás notificado cuando sea activada.',
+        'outside_hours' => 'No tienes permiso para acceder en este horario. Consulta con el administrador.',
+        'day_not_allowed' => 'No tienes permiso para acceder en este día. Consulta con el administrador.',
+        'not_started' => 'Tu cuenta aún no está activa. Serás notificado cuando puedas acceder.',
+        'expired' => 'Tu período de acceso ha finalizado. Consulta con el administrador.',
+    ];
+    
+    return $messages[$errorCode] ?? 'Acceso denegado. Contacta con el administrador.';
 }

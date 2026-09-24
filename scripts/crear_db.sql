@@ -57,6 +57,23 @@ CREATE TABLE `usuarios` (
     `last_login` TIMESTAMP NULL DEFAULT NULL
 ) ENGINE=InnoDB;
 
+-- Tabla de reglas de acceso (horarios y restricciones por usuario)
+DROP TABLE IF EXISTS `access_rules`;
+CREATE TABLE `access_rules` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT UNSIGNED NOT NULL,
+    `enabled` TINYINT(1) DEFAULT 1,
+    `start_time` TIME DEFAULT '00:00:00',
+    `end_time` TIME DEFAULT '23:59:59',
+    `days` VARCHAR(7) DEFAULT '1111111',
+    `date_start` DATE DEFAULT NULL,
+    `date_end` DATE DEFAULT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `unique_user` (`user_id`),
+    FOREIGN KEY (`user_id`) REFERENCES `usuarios`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Tabla de vistas (historial detallado)
 DROP TABLE IF EXISTS `vistas`;
 CREATE TABLE `vistas` (
