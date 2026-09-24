@@ -74,6 +74,27 @@ CREATE TABLE `access_rules` (
     FOREIGN KEY (`user_id`) REFERENCES `usuarios`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- Tabla de configuración del sitio
+DROP TABLE IF EXISTS `site_config`;
+CREATE TABLE `site_config` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `config_key` VARCHAR(100) NOT NULL UNIQUE,
+    `config_value` TEXT,
+    `config_type` VARCHAR(20) DEFAULT 'string',
+    `description` VARCHAR(255) DEFAULT '',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- Valores por defecto
+INSERT INTO `site_config` (`config_key`, `config_value`, `config_type`, `description`) VALUES
+('tmdb_api_key', '', 'string', 'API Key de TMDB (The Movie Database)'),
+('video_folder', '/var/www/videos', 'string', 'Carpeta que alberga los videos'),
+('max_upload_size', '104857600', 'integer', 'Tamaño máximo de subida en bytes (100MB por defecto)'),
+('allow_registration', '1', 'boolean', 'Permitir registro público de usuarios (1=sí, 0=no)'),
+('site_name', 'VideoTeca', 'string', 'Nombre del sitio'),
+('site_description', 'Videoteca personal', 'string', 'Descripción del sitio');
+
 -- Tabla de vistas (historial detallado)
 DROP TABLE IF EXISTS `vistas`;
 CREATE TABLE `vistas` (

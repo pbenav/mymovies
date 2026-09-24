@@ -257,16 +257,27 @@ function require_admin() {
 
 function get_access_rules($userId) {
     try {
-        $stmt = db()->prepare("SELECT * FROM access_rules WHERE user_id = :user_id LIMIT 1");
+        $stmt = db()->prepare("SELECT * FROM access_rules WHERE user_id = :user_id ORDER BY created_at DESC");
         $stmt->execute([':user_id' => $userId]);
-        return $stmt->fetch();
+        return $stmt->fetchAll();
     } catch (Exception $e) {
         error_log("Get access rules error: " . $e->getMessage());
+        return [];
+    }
+}
+
+function get_access_rule($userId, $ruleId) {
+    try {
+        $stmt = db()->prepare("SELECT * FROM access_rules WHERE user_id = :user_id AND id = :id LIMIT 1");
+        $stmt->execute([':user_id' => $userId, ':id' => $ruleId]);
+        return $stmt->fetch();
+    } catch (Exception $e) {
+        error_log("Get access rule error: " . $e->getMessage());
         return null;
     }
 }
 
-function save_access_rules($userId, $data) {
+function create_access_rule($userId, $data) {
     try {
         $enabled = isset($data['enabled']) ? 1 : 0;
         $startTime = $data['start_time'] ?? '00:00:00';
@@ -275,44 +286,67 @@ function save_access_rules($userId, $data) {
         $dateStart = $data['date_start'] ?? null;
         $dateEnd = $data['date_end'] ?? null;
         
-        // Si no hay regla, crear una nueva
-        $existing = get_access_rules($userId);
-        
-        if (!$existing) {
-            $stmt = db()->prepare("
-                INSERT INTO access_rules (user_id, enabled, start_time, end_time, days, date_start, date_end)
-                VALUES (:user_id, :enabled, :start_time, :end_time, :days, :date_start, :date_end)
-            ");
-            $stmt->execute([
-                ':user_id' => $userId,
-                ':enabled' => $enabled,
-                ':start_time' => $startTime,
-                ':end_time' => $endTime,
-                ':days' => $days,
-                ':date_start' => $dateStart,
-                ':date_end' => $dateEnd
-            ]);
-        } else {
-            $stmt = db()->prepare("
-                UPDATE access_rules 
-                SET enabled = :enabled, start_time = :start_time, end_time = :end_time, 
-                    days = :days, date_start = :date_start, date_end = :date_end
-                WHERE user_id = :user_id
-            ");
-            $stmt->execute([
-                ':enabled' => $enabled,
-                ':start_time' => $startTime,
-                ':end_time' => $endTime,
-                ':days' => $days,
-                ':date_start' => $dateStart,
-                ':date_end' => $dateEnd,
-                ':user_id' => $userId
-            ]);
-        }
+        $stmt = db()->prepare("
+            INSERT INTO access_rules (user_id, enabled, start_time, end_time, days, date_start, date_end)
+            VALUES (:user_id, :enabled, :start_time, :end_time, :days, :date_start, :date_end)
+        ");
+        $stmt->execute([
+            ':user_id' => $userId,
+            ':enabled' => $enabled,
+            ':start_time' => $startTime,
+            ':end_time' => $endTime,
+            ':days' => $days,
+            ':date_start' => $dateStart,
+            ':date_end' => $dateEnd
+        ]);
         
         return true;
     } catch (Exception $e) {
-        error_log("Save access rules error: " . $e->getMessage());
+        error_log("Create access rule error: " . $e->getMessage());
+        return false;
+    }
+}
+
+function update_access_rule($userId, $ruleId, $data) {
+    try {
+        $enabled = isset($data['enabled']) ? 1 : 0;
+        $startTime = $data['start_time'] ?? '00:00:00';
+        $endTime = $data['end_time'] ?? '23:59:59';
+        $days = isset($data['days']) ? implode('', $data['days']) : '1111111';
+        $dateStart = $data['date_start'] ?? null;
+        $dateEnd = $data['date_end'] ?? null;
+        
+        $stmt = db()->prepare("
+            UPDATE access_rules 
+            SET enabled = :enabled, start_time = :start_time, end_time = :end_time, 
+                days = :days, date_start = :date_start, date_end = :date_end
+            WHERE user_id = :user_id AND id = :id
+        ");
+        $stmt->execute([
+            ':enabled' => $enabled,
+            ':start_time' => $startTime,
+            ':end_time' => $endTime,
+            ':days' => $days,
+            ':date_start' => $dateStart,
+            ':date_end' => $dateEnd,
+            ':user_id' => $userId,
+            ':id' => $ruleId
+        ]);
+        
+        return true;
+    } catch (Exception $e) {
+        error_log("Update access rule error: " . $e->getMessage());
+        return false;
+    }
+}
+
+function delete_access_rule($userId, $ruleId) {
+    try {
+        $stmt = db()->prepare("DELETE FROM access_rules WHERE user_id = :user_id AND id = :id");
+        $stmt->execute([':user_id' => $userId, ':id' => $ruleId]);
+        return true;
+    } catch (Exception $e) {
+        error_log("Delete access rule error: " . $e->getMessage());
         return false;
     }
 }
@@ -322,12 +356,7 @@ function check_access_rules($userId) {
         $rules = get_access_rules($userId);
         
         // Si no hay reglas, permitir acceso
-        if (!$rules) {
-            return true;
-        }
-        
-        // Si las reglas están desactivadas, permitir acceso
-        if (!$rules['enabled']) {
+        if (empty($rules)) {
             return true;
         }
         
@@ -336,28 +365,58 @@ function check_access_rules($userId) {
         $currentDay = (int)$now->format('N'); // 1=Lunes, 7=Domingo
         $currentDate = $now->format('Y-m-d');
         
-        // Verificar horario
-        if ($rules['start_time'] !== '00:00:00' || $rules['end_time'] !== '23:59:59') {
-            if ($currentHour < $rules['start_time'] || $currentHour > $rules['end_time']) {
-                return 'outside_hours';
+        // Verificar cada regla activa
+        $anyActiveRule = false;
+        
+        foreach ($rules as $rule) {
+            // Si la regla está desactivada, saltarla
+            if (!$rule['enabled']) {
+                continue;
+            }
+            
+            $anyActiveRule = true;
+            
+            // Verificar días de la semana
+            $dayIndex = $currentDay - 1; // Convertir a índice 0-6
+            $dayString = $rule['days'];
+            if (strlen($dayString) === 7 && $dayString[$dayIndex] === '0') {
+                continue; // Este día no está permitido para esta regla
+            }
+            
+            // Verificar fechas de inicio/fin
+            if ($rule['date_start'] && $currentDate < $rule['date_start']) {
+                continue; // Aún no comienza
+            }
+            
+            if ($rule['date_end'] && $currentDate > $rule['date_end']) {
+                continue; // Ya expiró
+            }
+            
+            // Verificar horario
+            if ($rule['start_time'] === '00:00:00' && $rule['end_time'] === '23:59:59') {
+                // Horario completo - permitido
+                return true;
+            }
+            
+            // Verificar si el horario cruza medianoche (ej: 22:00 - 03:00)
+            $crossesMidnight = ($rule['start_time'] > $rule['end_time']);
+            
+            if ($crossesMidnight) {
+                // Horario que cruza medianoche: permitido si está en [start, 23:59] O [00:00, end]
+                if ($currentHour >= $rule['start_time'] || $currentHour <= $rule['end_time']) {
+                    return true;
+                }
+            } else {
+                // Horario normal: permitido si está en [start, end]
+                if ($currentHour >= $rule['start_time'] && $currentHour <= $rule['end_time']) {
+                    return true;
+                }
             }
         }
         
-        // Verificar días de la semana
-        // days = '1111111' donde cada posición es un día (Lun-Dom)
-        $dayIndex = $currentDay - 1; // Convertir a índice 0-6
-        $dayString = $rules['days'];
-        if (strlen($dayString) === 7 && $dayString[$dayIndex] === '0') {
-            return 'day_not_allowed';
-        }
-        
-        // Verificar fechas de inicio/fin
-        if ($rules['date_start'] && $currentDate < $rules['date_start']) {
-            return 'not_started';
-        }
-        
-        if ($rules['date_end'] && $currentDate > $rules['date_end']) {
-            return 'expired';
+        // Si hay reglas activas pero ninguna permite el acceso ahora
+        if ($anyActiveRule) {
+            return 'outside_hours';
         }
         
         return true;
@@ -377,4 +436,84 @@ function get_access_error_message($errorCode) {
     ];
     
     return $messages[$errorCode] ?? 'Acceso denegado. Contacta con el administrador.';
+}
+
+// ==================== SITE CONFIG ====================
+
+function get_site_config($key = null) {
+    try {
+        if ($key) {
+            $stmt = db()->prepare("SELECT config_value, config_type FROM site_config WHERE config_key = :key LIMIT 1");
+            $stmt->execute([':key' => $key]);
+            $row = $stmt->fetch();
+            if ($row) {
+                return [
+                    'value' => convert_config_type($row['config_value'], $row['config_type']),
+                    'type' => $row['config_type']
+                ];
+            }
+            return null;
+        } else {
+            $stmt = db()->query("SELECT config_key, config_value, config_type, description FROM site_config ORDER BY config_key");
+            return $stmt->fetchAll();
+        }
+    } catch (Exception $e) {
+        error_log("Get site config error: " . $e->getMessage());
+        return $key ? null : [];
+    }
+}
+
+function save_site_config($key, $value, $type = 'string') {
+    try {
+        // Convertir a string para guardar
+        $stringValue = is_bool($value) ? ($value ? '1' : '0') : (string)$value;
+        
+        $existing = db()->prepare("SELECT id FROM site_config WHERE config_key = :key LIMIT 1");
+        $existing->execute([':key' => $key]);
+        
+        if (!$existing->fetch()) {
+            $stmt = db()->prepare("
+                INSERT INTO site_config (config_key, config_value, config_type)
+                VALUES (:key, :value, :type)
+            ");
+            $stmt->execute([
+                ':key' => $key,
+                ':value' => $stringValue,
+                ':type' => $type
+            ]);
+        } else {
+            $stmt = db()->prepare("
+                UPDATE site_config 
+                SET config_value = :value, config_type = :type
+                WHERE config_key = :key
+            ");
+            $stmt->execute([
+                ':value' => $stringValue,
+                ':type' => $type,
+                ':key' => $key
+            ]);
+        }
+        
+        return true;
+    } catch (Exception $e) {
+        error_log("Save site config error: " . $e->getMessage());
+        return false;
+    }
+}
+
+function convert_config_type($value, $type) {
+    if ($value === null || $value === '') {
+        return $type === 'boolean' ? false : '';
+    }
+    
+    switch ($type) {
+        case 'integer':
+            return (int)$value;
+        case 'boolean':
+            return (bool)$value && $value !== '0' && $value !== '';
+        case 'float':
+            return (float)$value;
+        default:
+            return $value;
+    }
 }

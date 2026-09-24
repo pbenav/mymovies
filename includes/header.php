@@ -56,6 +56,7 @@ $root = '/';
                         <div class="dropdown-content">
                             <?php if ($user['is_admin']): ?>
                             <a href="<?= $root ?>admin/users.php">👥 Usuarios</a>
+                            <a href="<?= $root ?>admin/settings.php">⚙️ Configuración</a>
                             <?php endif; ?>
                             <a href="<?= $root ?>logout.php">🚪 Cerrar sesión</a>
                         </div>
