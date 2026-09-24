@@ -9,6 +9,9 @@ $base = '';
 if (strpos($_SERVER['PHP_SELF'], '/admin/') !== false) {
     $base = '../';
 }
+
+// URL raíz del sitio (ruta absoluta desde dominio)
+$root = '/';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -28,18 +31,18 @@ if (strpos($_SERVER['PHP_SELF'], '/admin/') !== false) {
     <header>
         <nav>
             <div class="nav-container">
-                <a href="index.php" class="logo">🎬 VideoTeca</a>
+                <a href="<?= $root ?>index.php" class="logo">🎬 VideoTeca</a>
                 <div class="nav-links">
-                    <a href="index.php">Inicio</a>
+                    <a href="<?= $root ?>index.php">Inicio</a>
                     <div class="dropdown">
                         <span class="dropdown-toggle">Categorías ▾</span>
                         <div class="dropdown-content">
-                            <a href="index.php#todas">Todas</a>
+                            <a href="<?= $root ?>index.php#todas">Todas</a>
                             <?php
                             try {
                                 $stmt = db()->query("SELECT id, nombre FROM categorias ORDER BY nombre");
                                 while ($cat = $stmt->fetch()) {
-                                    echo '<a href="genre.php?categoria=' . urlencode($cat['id']) . '">' . htmlspecialchars($cat['nombre']) . '</a>';
+                                    echo '<a href="' . $root . 'genre.php?categoria=' . urlencode($cat['id']) . '">' . htmlspecialchars($cat['nombre']) . '</a>';
                                 }
                             } catch (Exception $e) {
                                 // BD no creada aún
@@ -52,18 +55,17 @@ if (strpos($_SERVER['PHP_SELF'], '/admin/') !== false) {
                         <span class="dropdown-toggle"><?php echo htmlspecialchars($user['username']); ?> ▾</span>
                         <div class="dropdown-content">
                             <?php if ($user['is_admin']): ?>
-                            <a href="admin/users.php">👥 Usuarios</a>
-                            <a href="admin.php">⚙️ Admin</a>
+                            <a href="<?= $root ?>admin/users.php">👥 Usuarios</a>
                             <?php endif; ?>
-                            <a href="logout.php">🚪 Cerrar sesión</a>
+                            <a href="<?= $root ?>logout.php">🚪 Cerrar sesión</a>
                         </div>
                     </div>
                     <?php else: ?>
-                    <a href="login.php">Iniciar sesión</a>
-                    <a href="register.php" class="btn-register">Registrarse</a>
+                    <a href="<?= $root ?>login.php">Iniciar sesión</a>
+                    <a href="<?= $root ?>register.php" class="btn-register">Registrarse</a>
                     <?php endif; ?>
                 </div>
-                <form class="search-form" method="GET" action="index.php">
+                <form class="search-form" method="GET" action="<?= $root ?>index.php">
                     <input type="text" name="buscar" placeholder="Buscar películas..." value="<?= isset($_GET['buscar']) ? htmlspecialchars($_GET['buscar']) : '' ?>">
                     <button type="submit">🔍</button>
                 </form>
