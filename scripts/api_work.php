@@ -1,39 +1,42 @@
 <?php
-/**
- * API para gestionar trabajos en segundo plano
- * GET ?action=status&id=<id> - Ver estado
- * POST  ?action=create        - Crear nuevo trabajo
- */
+// Crear carpeta work en múltiples ubicaciones posibles
+$possibleDirs = [
+    __DIR__ . '/../work',
+    dirname(__DIR__) . '/work',
+    '/tmp/mymovies_work',
+];
+
+foreach ($possibleDirs as $dir) {
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0777, true);
+    }
+    if (is_writable($dir)) {
+        define('WORK_DIR', $dir);
+        break;
+    }
+}
+
+if (!defined('WORK_DIR')) {
+    define('WORK_DIR', '/tmp');
+}
 
 header('Content-Type: application/json');
 
-// Logging propio para debugging
-$logFile = __DIR__ . '/../work/api.log';
 function logMsg($msg) {
-    file_put_contents(__DIR__ . '/../work/api.log', date('Y-m-d H:i:s') . ' ' . $msg . "\n", FILE_APPEND);
+    file_put_contents(WORK_DIR . '/api.log', date('Y-m-d H:i:s') . ' ' . $msg . "\n", FILE_APPEND | LOCK_EX);
 }
 
-$logDir = __DIR__ . '/../work/';
-if (!is_dir($logDir)) {
-    mkdir($logDir, 0755, true);
-}
-
-$workDir = __DIR__ . '/../work/';
-if (!is_dir($workDir)) {
-    mkdir($workDir, 0755, true);
+function workPath($id) {
+    return WORK_DIR . '/' . basename($id) . '.json';
 }
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 $id = $_GET['id'] ?? '';
 
-logMsg("ACTION=$action ID=$id TYPE=" . ($_POST['type'] ?? 'N/A'));
-
-function workPath($id) {
-    return __DIR__ . '/../work/' . basename($id) . '.json';
-}
+logMsg("START action=$action id=$id type=" . ($_POST['type'] ?? 'N/A'));
 
 function saveWork($id, $data) {
-    file_put_contents(workPath($id), json_encode($data));
+    file_put_contents(workPath($id), json_encode($data), LOCK_EX);
 }
 
 function getWork($id) {
@@ -71,53 +74,80 @@ if ($action === 'create') {
     saveWork($id, $work);
     
     // Lanzar proceso en background
-    $script = __DIR__ . '/run_work.php';
-    $fullScript = realpath($script);
+    $scriptPath = dirname(__DIR__) . '/scripts/run_work.php';
+    $realScript = realpath($scriptPath);
     
-    if (!$fullScript) {
-        logMsg("ERROR: Script no encontrado: $script");
-        echo json_encode(['error' => 'Script no encontrado: ' . $script]);
+    if (!$realScript) {
+        logMsg("ERROR: run_work.php no encontrado en: $scriptPath");
+        echo json_encode(['error' => 'Script no encontrado']);
         exit;
     }
     
-    logMsg("Lanzando: php $fullScript $id");
+    logMsg("Lanzando: php $realScript $id");
     
-    // Intentar con proc_open primero
-    $desc = [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']];
-    $proc = @proc_open('nohup php ' . escapeshellarg($fullScript) . ' ' . escapeshellarg($id) . ' > /dev/null 2>&1 &', $desc, $pipes);
+    $launched = false;
     
-    if (!is_resource($proc)) {
-        logMsg("proc_open falló, intentando shell_exec");
-        // Fallback: usar shell_exec con &
-        $cmd = 'nohup php ' . escapeshellarg($fullScript) . ' ' . escapeshellarg($id) . ' > /dev/null 2>&1 &';
-        $result = shell_exec($cmd);
-        logMsg("shell_exec result: " . var_export($result, true));
+    // Método 1: proc_open
+    if (!function_exists('proc_open')) {
+        logMsg("proc_open no disponible");
     } else {
-        logMsg("proc_open exitoso");
-        fclose($pipes[0]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        proc_close($proc);
+        $desc = [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']];
+        $cmd = 'nohup php ' . escapeshellarg($realScript) . ' ' . escapeshellarg($id) . ' >/dev/null 2>&1 &';
+        $proc = @proc_open($cmd, $desc, $pipes);
+        if (is_resource($proc)) {
+            fclose($pipes[0]); fclose($pipes[1]); fclose($pipes[2]);
+            proc_close($proc);
+            $launched = true;
+            logMsg("Lanzado con proc_open");
+        } else {
+            logMsg("proc_open falló");
+        }
     }
     
-    // Pequeña pausa para asegurar que el proceso arrancó
-    usleep(200000); // 200ms
+    // Método 2: shell_exec
+    if (!$launched) {
+        $cmd = 'nohup php ' . escapeshellarg($realScript) . ' ' . escapeshellarg($id) . ' >/dev/null 2>&1 &';
+        $pid = shell_exec($cmd . ' echo $!');
+        $launched = true;
+        logMsg("Lanzado con shell_exec, PID: " . trim($pid ?? ''));
+    }
     
-    // Verificar que el work file tiene status 'queued'
+    // Método 3: popen
+    if (!$launched) {
+        $cmd = 'nohup php ' . escapeshellarg($realScript) . ' ' . escapeshellarg($id) . ' >/dev/null 2>&1 &';
+        $fp = @popen($cmd, 'r');
+        if ($fp) {
+            pclose($fp);
+            $launched = true;
+            logMsg("Lanzado con popen");
+        } else {
+            logMsg("popen falló");
+        }
+    }
+    
+    if (!$launched) {
+        logMsg("ERROR: Todos los métodos fallaron");
+        echo json_encode(['error' => 'No se pudo iniciar el proceso']);
+        exit;
+    }
+    
+    usleep(300000); // 300ms
+    
+    // Verificar que el trabajo existe
     $workFile = workPath($id);
     if (!file_exists($workFile)) {
-        logMsg("ERROR: Work file no creado: $workFile");
+        logMsg("ERROR: Work file no creado en 300ms");
         echo json_encode(['error' => 'Work file no creado']);
         exit;
     }
     
     $updatedWork = json_decode(file_get_contents($workFile), true);
-    logMsg("Work status after launch: " . ($updatedWork['status'] ?? 'unknown'));
+    logMsg("Work status: " . ($updatedWork['status'] ?? 'unknown'));
     
-    if (!isset($updatedWork['status']) || $updatedWork['status'] === 'queued') {
+    if ($updatedWork && ($updatedWork['status'] === 'queued' || $updatedWork['status'] === 'running')) {
         echo json_encode(['id' => $id, 'status' => 'queued']);
     } else {
-        echo json_encode(['error' => 'Error al iniciar el proceso. Status: ' . ($updatedWork['status'] ?? 'unknown')]);
+        echo json_encode(['error' => 'Error desconocido al iniciar']);
     }
     
     echo json_encode(['id' => $id, 'status' => 'queued']);
