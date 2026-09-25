@@ -39,15 +39,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
     
     if ($_POST['action'] === 'update_db') {
-        // Aquí se ejecutarían migraciones pendientes
-        $message = 'La base de datos está actualizada.';
-        $messageType = 'success';
+        // Ejecutar actualización de BD + TMDB
+        $scriptPath = __DIR__ . '/../scripts/actualizar_db.php';
+        if (is_file($scriptPath)) {
+            $output = [];
+            $returnVar = 0;
+            exec("php " . escapeshellarg($scriptPath) . " --enriquecer 2>&1", $output, $returnVar);
+            $outputStr = implode("\n", $output);
+            
+            // Extraer resumen
+            if (preg_match('/Nuevas:\s*(\d+)/', $outputStr, $nuevas) && 
+                preg_match('/Existente:\s*(\d+)/', $outputStr, $existente) &&
+                preg_match('/Enriquecidas:\s*(\d+)/', $outputStr, $enriquecidas)) {
+                $message = "Actualización completada: {$nuevas[1]} nuevas, {$existente[1]} existentes, {$enriquecidas[1]} enriquecidas con TMDB.";
+            } else {
+                $message = 'Actualización completada.';
+            }
+            $messageType = 'success';
+        } else {
+            $message = 'Error: script de actualización no encontrado.';
+            $messageType = 'error';
+        }
     }
     
     if ($_POST['action'] === 'update_tmdb') {
-        // Aquí se sincronizarían los metadatos de TMDB
-        $message = 'Sincronización con TMDB iniciada. Esto puede tardar unos minutos.';
-        $messageType = 'success';
+        // Ejecutar solo actualización TMDB
+        $scriptPath = __DIR__ . '/../scripts/actualizar_db.php';
+        if (is_file($scriptPath)) {
+            $output = [];
+            exec("php " . escapeshellarg($scriptPath) . " --enriquecer 2>&1", $output, $returnVar);
+            $outputStr = implode("\n", $output);
+            
+            if (preg_match('/Enriquecidas:\s*(\d+)/', $outputStr, $enriquecidas) &&
+                preg_match('/Sin resultados:\s*(\d+)/', $outputStr, $fallidas)) {
+                $message = "TMDB actualizado: {$enriquecidas[1]} enriquecidas, {$fallidas[1]} sin resultados.";
+            } else {
+                $message = 'Sincronización con TMDB completada.';
+            }
+            $messageType = 'success';
+        } else {
+            $message = 'Error: script de actualización no encontrado.';
+            $messageType = 'error';
+        }
     }
 }
 

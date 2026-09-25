@@ -33,6 +33,7 @@ $items = scandir($videoPath);
 $categorias = [];
 foreach ($items as $item) {
     if ($item === '.' || $item === '..') continue;
+    if ($item === 'Convertidas') continue;
     if (is_dir($videoPath . '/' . $item)) {
         $categorias[] = $item;
     }
@@ -78,11 +79,57 @@ foreach ($categorias as $catNombre) {
     
     foreach ($videos as $video) {
         if ($video === '.' || $video === '..') continue;
+        if ($video === 'Convertidas') continue;
+        
+        $filePath = $catDir . '/' . $video;
+        
+        // Si es un directorio (y no Convertidas), escanear recursivamente
+        if (is_dir($filePath)) {
+            $subVideos = scandir($filePath);
+            foreach ($subVideos as $subVideo) {
+                if ($subVideo === '.' || $subVideo === '..') continue;
+                
+                $subExt = strtolower(pathinfo($subVideo, PATHINFO_EXTENSION));
+                if (!in_array($subExt, $extensiones)) continue;
+                
+                $subFilePath = $filePath . '/' . $subVideo;
+                if (!is_file($subFilePath)) continue;
+                
+                $tamano = filesize($subFilePath);
+                $titulo = pathinfo($subVideo, PATHINFO_FILENAME);
+                $titulo = preg_replace('/\s*[\(\\[].*?[\)\\]]/s', '', $titulo);
+                $titulo = preg_replace('/\s+/', ' ', trim($titulo));
+                
+                $archivo = "$catNombre/$video/$subVideo";
+                
+                $check = $conn->prepare("SELECT id FROM peliculas WHERE archivo = :archivo LIMIT 1");
+                $check->execute([':archivo' => $archivo]);
+                
+                if ($check->fetch()) {
+                    $stats['existente']++;
+                } else {
+                    try {
+                        $peliInsert->execute([
+                            ':titulo' => $titulo,
+                            ':cat_id' => $catId,
+                            ':archivo' => $archivo,
+                            ':ext' => $subExt,
+                            ':tamano' => $tamano,
+                            ':titulo2' => $titulo,
+                        ]);
+                        $stats['nuevas']++;
+                        $nuevasEnCat++;
+                    } catch (Exception $e) {
+                        $stats['errores']++;
+                    }
+                }
+            }
+            continue;
+        }
         
         $ext = strtolower(pathinfo($video, PATHINFO_EXTENSION));
         if (!in_array($ext, $extensiones)) continue;
         
-        $filePath = $catDir . '/' . $video;
         if (!is_file($filePath)) continue;
         
         $tamano = filesize($filePath);
@@ -139,9 +186,25 @@ if (isset($_SERVER['argv']) && in_array('--limpiar', $_SERVER['argv'])) {
         $videos = scandir($videoPath . '/' . $catNombre);
         foreach ($videos as $video) {
             if ($video === '.' || $video === '..') continue;
-            $ext = strtolower(pathinfo($video, PATHINFO_EXTENSION));
-            if (in_array($ext, $extensiones)) {
-                $archivosDisco[] = "$catNombre/$video";
+            if ($video === 'Convertidas') continue;
+            
+            $filePath = $videoPath . '/' . $catNombre . '/' . $video;
+            
+            // Soporte para archivos dentro de subdirectorios
+            if (is_dir($filePath)) {
+                $subVideos = scandir($filePath);
+                foreach ($subVideos as $subVideo) {
+                    if ($subVideo === '.' || $subVideo === '..') continue;
+                    $subExt = strtolower(pathinfo($subVideo, PATHINFO_EXTENSION));
+                    if (in_array($subExt, $extensiones)) {
+                        $archivosDisco[] = "$catNombre/$video/$subVideo";
+                    }
+                }
+            } else {
+                $ext = strtolower(pathinfo($video, PATHINFO_EXTENSION));
+                if (in_array($ext, $extensiones)) {
+                    $archivosDisco[] = "$catNombre/$video";
+                }
             }
         }
     }
