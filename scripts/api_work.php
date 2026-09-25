@@ -7,6 +7,17 @@
 
 header('Content-Type: application/json');
 
+// Logging propio para debugging
+$logFile = __DIR__ . '/../work/api.log';
+function logMsg($msg) {
+    file_put_contents(__DIR__ . '/../work/api.log', date('Y-m-d H:i:s') . ' ' . $msg . "\n", FILE_APPEND);
+}
+
+$logDir = __DIR__ . '/../work/';
+if (!is_dir($logDir)) {
+    mkdir($logDir, 0755, true);
+}
+
 $workDir = __DIR__ . '/../work/';
 if (!is_dir($workDir)) {
     mkdir($workDir, 0755, true);
@@ -14,6 +25,8 @@ if (!is_dir($workDir)) {
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 $id = $_GET['id'] ?? '';
+
+logMsg("ACTION=$action ID=$id TYPE=" . ($_POST['type'] ?? 'N/A'));
 
 function workPath($id) {
     return __DIR__ . '/../work/' . basename($id) . '.json';
@@ -57,22 +70,54 @@ if ($action === 'create') {
     ];
     saveWork($id, $work);
     
-    // Lanzar proceso en background (desconectado del request)
+    // Lanzar proceso en background
     $script = __DIR__ . '/run_work.php';
-    $cmd = sprintf(
-        'nohup php -c %s %s %s > /dev/null 2>&1 &',
-        escapeshellarg(ini_get('disable_functions') ? ini_get('disable_functions') : ''),
-        escapeshellarg($script),
-        escapeshellarg($id)
-    );
-    // Usar proc_open para verdadero background
+    $fullScript = realpath($script);
+    
+    if (!$fullScript) {
+        logMsg("ERROR: Script no encontrado: $script");
+        echo json_encode(['error' => 'Script no encontrado: ' . $script]);
+        exit;
+    }
+    
+    logMsg("Lanzando: php $fullScript $id");
+    
+    // Intentar con proc_open primero
     $desc = [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']];
-    $proc = proc_open('nohup php ' . escapeshellarg($script) . ' ' . escapeshellarg($id) . ' > /dev/null 2>&1', $desc, $pipes);
-    if (is_resource($proc)) {
+    $proc = @proc_open('nohup php ' . escapeshellarg($fullScript) . ' ' . escapeshellarg($id) . ' > /dev/null 2>&1 &', $desc, $pipes);
+    
+    if (!is_resource($proc)) {
+        logMsg("proc_open falló, intentando shell_exec");
+        // Fallback: usar shell_exec con &
+        $cmd = 'nohup php ' . escapeshellarg($fullScript) . ' ' . escapeshellarg($id) . ' > /dev/null 2>&1 &';
+        $result = shell_exec($cmd);
+        logMsg("shell_exec result: " . var_export($result, true));
+    } else {
+        logMsg("proc_open exitoso");
         fclose($pipes[0]);
         fclose($pipes[1]);
         fclose($pipes[2]);
         proc_close($proc);
+    }
+    
+    // Pequeña pausa para asegurar que el proceso arrancó
+    usleep(200000); // 200ms
+    
+    // Verificar que el work file tiene status 'queued'
+    $workFile = workPath($id);
+    if (!file_exists($workFile)) {
+        logMsg("ERROR: Work file no creado: $workFile");
+        echo json_encode(['error' => 'Work file no creado']);
+        exit;
+    }
+    
+    $updatedWork = json_decode(file_get_contents($workFile), true);
+    logMsg("Work status after launch: " . ($updatedWork['status'] ?? 'unknown'));
+    
+    if (!isset($updatedWork['status']) || $updatedWork['status'] === 'queued') {
+        echo json_encode(['id' => $id, 'status' => 'queued']);
+    } else {
+        echo json_encode(['error' => 'Error al iniciar el proceso. Status: ' . ($updatedWork['status'] ?? 'unknown')]);
     }
     
     echo json_encode(['id' => $id, 'status' => 'queued']);
