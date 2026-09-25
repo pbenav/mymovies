@@ -39,26 +39,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
     
     if ($_POST['action'] === 'update_db' || $_POST['action'] === 'update_tmdb') {
+        // Redirigir al script de ejecución con streaming
         $type = $_POST['action'] === 'update_db' ? 'update_db' : 'update_tmdb';
-        $apiUrl = 'http://localhost/scripts/api_work.php?action=create';
-        $ch = curl_init($apiUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(['type' => $type]));
-        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-        $response = curl_exec($ch);
-        curl_close($ch);
-        
-        $data = json_decode($response, true);
-        if ($data && isset($data['id'])) {
-            $_SESSION['current_work'] = $data['id'];
-            $message = '⏳ Procesando en segundo plano. La página actualizará el progreso automáticamente.';
-            $messageType = 'info';
-        } else {
-            $message = 'Error al iniciar el proceso. Intenta nuevamente.';
-            $messageType = 'error';
-        }
+        $redirectUrl = '../scripts/run_update.php?action=run&type=' . urlencode($type);
+        $_SESSION['pending_redirect'] = $redirectUrl;
+        header('Location: ../scripts/run_update.php?action=run&type=' . urlencode($type));
+        exit;
     }
 }
 
@@ -382,66 +368,54 @@ require_once '../includes/header.php';
 
 <script>
 (function() {
-    const workId = <?php echo $_SESSION['current_work'] ?? 'null'; ?>;
-    if (!workId) return;
-    
     const panel = document.getElementById('work-status-panel');
-    if (panel) panel.style.display = 'block';
+    if (!panel) return;
+    panel.style.display = 'block';
     
-    let pollInterval = null;
-    let pollCount = 0;
-    const maxPolls = 600; // 10 minutos a 1 segundo
+    const statusText = document.getElementById('work-status-text');
+    const progressFill = document.getElementById('work-progress-fill');
+    const progressPercent = document.getElementById('work-progress-percent');
+    const details = document.getElementById('work-details');
+    const results = document.getElementById('work-results');
+    const cancelBtn = document.getElementById('btn-cancel-work');
+    if (cancelBtn) cancelBtn.style.display = 'none';
     
-    function pollStatus() {
-        if (pollCount >= maxPolls) {
-            stopPolling('Tiempo de espera agotado. Recarga la página para ver el estado final.');
-            return;
+    // Conectar al stream de ejecución
+    const url = '../scripts/run_update.php?action=run&type=' + (window.location.search.includes('update_tmdb') ? 'update_tmdb' : 'update_db');
+    
+    const evtSource = new EventSource(url);
+    
+    evtSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        updatePanel(data);
+        
+        if (data.status === 'done') {
+            evtSource.close();
         }
-        
-        fetch('../scripts/api_work.php?action=status&id=' + encodeURIComponent(workId))
-            .then(r => r.json())
-            .then(data => {
-                updatePanel(data);
-                
-                if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
-                    setTimeout(() => stopPolling(), 5000);
-                }
-            })
-            .catch(() => {
-                // Error de red, seguir intentando
-            });
-        
-        pollCount++;
-    }
+    };
+    
+    evtSource.onerror = function(err) {
+        console.error('EventSource falló', err);
+        if (statusText) {
+            statusText.textContent = '❌ Conexión perdida';
+        }
+    };
     
     function updatePanel(data) {
-        const statusText = document.getElementById('work-status-text');
-        const progressFill = document.getElementById('work-progress-fill');
-        const progressPercent = document.getElementById('work-progress-percent');
-        const details = document.getElementById('work-details');
-        const results = document.getElementById('work-results');
-        
         if (!statusText) return;
         
         statusText.textContent = getStatusMessage(data);
         progressFill.style.width = (data.progress || 0) + '%';
         progressPercent.textContent = Math.round(data.progress || 0) + '%';
         
-        // Actualizar clases del panel
         panel.classList.remove('work-complete', 'work-failed');
         if (data.status === 'completed') panel.classList.add('work-complete');
         if (data.status === 'failed') panel.classList.add('work-failed');
         
-        // Mostrar detalles
         if (details) {
             let html = '';
-            if (data.status === 'running') {
-                html = `Iniciado: <span>${data.started_at || '-'}</span>`;
-                if (data.type === 'update_db') {
-                    html += ` | Tipo: <span>Actualización completa (BD + TMDB)</span>`;
-                } else {
-                    html += ` | Tipo: <span>Actualización TMDB</span>`;
-                }
+            if (data.status === 'processing') {
+                html = `Procesando... <span>${data.progress || 0}%</span>`;
             } else if (data.status === 'completed') {
                 html = `Completado: <span>${data.finished_at || '-'}</span>`;
                 if (data.nuevas) html += ` | <span>Nuevas: ${data.nuevas}</span>`;
@@ -449,14 +423,11 @@ require_once '../includes/header.php';
                 if (data.enriquecidas) html += ` | <span>Enriquecidas TMDB: ${data.enriquecidas}</span>`;
             } else if (data.status === 'failed') {
                 html = `<span style="color:#ff6b6b">Error</span>: ${data.error || 'Error desconocido'}`;
-            } else if (data.status === 'cancelled') {
-                html = `<span style="color:#ff6b6b">Cancelado</span>`;
             }
             details.innerHTML = html;
         }
         
-        // Mostrar resultados
-        if (results && data.status !== 'running') {
+        if (results) {
             let html = '';
             if (data.status === 'completed') {
                 html = `<div style="color:#00ff88">✅ Actualización completada exitosamente</div>`;
@@ -472,11 +443,11 @@ require_once '../includes/header.php';
     
     function getStatusMessage(data) {
         switch(data.status) {
-            case 'queued': return '⏳ En cola...';
-            case 'running': return '⚙️ Procesando...';
+            case 'starting': return '⏳ Iniciando...';
+            case 'processing': return '⚙️ Procesando...';
             case 'completed': return '✅ Completado';
             case 'failed': return '❌ Error';
-            case 'cancelled': return '⛔ Cancelado';
+            case 'done': return '✅ Completado';
             default: return '⏳ Procesando...';
         }
     }
@@ -487,54 +458,67 @@ require_once '../includes/header.php';
         return div.innerHTML;
     }
     
-    function stopPolling(message) {
-        if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
+    function updatePanel(data) {
+        const statusText = document.getElementById('work-status-text');
+        const progressFill = document.getElementById('work-progress-fill');
+        const progressPercent = document.getElementById('work-progress-percent');
+        const details = document.getElementById('work-details');
+        const results = document.getElementById('work-results');
+        
+        if (!statusText) return;
+        
+        statusText.textContent = getStatusMessage(data);
+        progressFill.style.width = (data.progress || 0) + '%';
+        progressPercent.textContent = Math.round(data.progress || 0) + '%';
+        
+        panel.classList.remove('work-complete', 'work-failed');
+        if (data.status === 'completed') panel.classList.add('work-complete');
+        if (data.status === 'failed') panel.classList.add('work-failed');
+        
+        if (details) {
+            let html = '';
+            if (data.status === 'processing') {
+                html = `Procesando... <span>${data.progress || 0}%</span>`;
+            } else if (data.status === 'completed') {
+                html = `Completado: <span>${data.finished_at || '-'}</span>`;
+                if (data.nuevas) html += ` | <span>Nuevas: ${data.nuevas}</span>`;
+                if (data.existente) html += ` | <span>Existentes: ${data.existente}</span>`;
+                if (data.enriquecidas) html += ` | <span>Enriquecidas TMDB: ${data.enriquecidas}</span>`;
+            } else if (data.status === 'failed') {
+                html = `<span style="color:#ff6b6b">Error</span>: ${data.error || 'Error desconocido'}`;
+            }
+            details.innerHTML = html;
         }
-        const spinner = document.querySelector('.work-spinner');
-        if (spinner) spinner.style.animation = 'none';
+        
+        if (results) {
+            let html = '';
+            if (data.status === 'completed') {
+                html = `<div style="color:#00ff88">✅ Actualización completada exitosamente</div>`;
+                if (data.nuevas) html += `📁 Nuevas: <strong>${data.nuevas}</strong> | `;
+                if (data.existente) html += `📁 Existentes: <strong>${data.existente}</strong> | `;
+                if (data.enriquecidas) html += `🎬 TMDB: <strong>${data.enriquecidas}</strong> enriquecidas`;
+                results.innerHTML = html;
+            } else if (data.status === 'failed' && data.output) {
+                results.innerHTML = '<div class="work-output">' + escapeHtml(data.output) + '</div>';
+            }
+        }
     }
     
-    // Mostrar panel
-    const existingPanel = document.getElementById('work-status-panel');
-    if (existingPanel) existingPanel.style.display = 'block';
-    
-    // Primera consulta inmediata
-    pollStatus();
-    
-    // Polling: 1 seg durante primeros 30 seg, luego 2 seg, luego 5 seg
-    let delay = 1000;
-    pollInterval = setInterval(pollStatus, delay);
-    
-    // Ajustar delay dinámicamente
-    let elapsed = 0;
-    setInterval(() => {
-        elapsed += delay;
-        if (elapsed > 30000 && delay === 1000) {
-            clearInterval(pollInterval);
-            pollInterval = setInterval(pollStatus, 2000);
-        } else if (elapsed > 120000 && delay === 2000) {
-            clearInterval(pollInterval);
-            pollInterval = setInterval(pollStatus, 5000);
+    function getStatusMessage(data) {
+        switch(data.status) {
+            case 'starting': return '⏳ Iniciando...';
+            case 'processing': return '⚙️ Procesando...';
+            case 'completed': return '✅ Completado';
+            case 'failed': return '❌ Error';
+            case 'done': return '✅ Completado';
+            default: return '⏳ Procesando...';
         }
-    }, 1000);
+    }
     
-    // Botón cancelar
-    const cancelBtn = document.getElementById('btn-cancel-work');
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', function() {
-            if (!confirm('¿Cancelar el trabajo en ejecución?')) return;
-            fetch('../scripts/api_work.php?action=cancel&id=' + encodeURIComponent(workId))
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        pollStatus();
-                    } else {
-                        alert(data.error || 'Error al cancelar');
-                    }
-                });
-        });
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 })();
 </script>
