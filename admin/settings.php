@@ -38,47 +38,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
     
-    if ($_POST['action'] === 'update_db') {
-        // Ejecutar actualización de BD + TMDB
-        $scriptPath = __DIR__ . '/../scripts/actualizar_db.php';
-        if (is_file($scriptPath)) {
-            $output = [];
-            $returnVar = 0;
-            exec("php " . escapeshellarg($scriptPath) . " --enriquecer 2>&1", $output, $returnVar);
-            $outputStr = implode("\n", $output);
-            
-            // Extraer resumen
-            if (preg_match('/Nuevas:\s*(\d+)/', $outputStr, $nuevas) && 
-                preg_match('/Existente:\s*(\d+)/', $outputStr, $existente) &&
-                preg_match('/Enriquecidas:\s*(\d+)/', $outputStr, $enriquecidas)) {
-                $message = "Actualización completada: {$nuevas[1]} nuevas, {$existente[1]} existentes, {$enriquecidas[1]} enriquecidas con TMDB.";
-            } else {
-                $message = 'Actualización completada.';
-            }
-            $messageType = 'success';
+    if ($_POST['action'] === 'update_db' || $_POST['action'] === 'update_tmdb') {
+        $type = $_POST['action'] === 'update_db' ? 'update_db' : 'update_tmdb';
+        $apiUrl = 'http://localhost/scripts/api_work.php?action=create';
+        $ch = curl_init($apiUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(['type' => $type]));
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        $response = curl_exec($ch);
+        curl_close($ch);
+        
+        $data = json_decode($response, true);
+        if ($data && isset($data['id'])) {
+            $_SESSION['current_work'] = $data['id'];
+            $message = '⏳ Procesando en segundo plano. La página actualizará el progreso automáticamente.';
+            $messageType = 'info';
         } else {
-            $message = 'Error: script de actualización no encontrado.';
-            $messageType = 'error';
-        }
-    }
-    
-    if ($_POST['action'] === 'update_tmdb') {
-        // Ejecutar solo actualización TMDB
-        $scriptPath = __DIR__ . '/../scripts/actualizar_db.php';
-        if (is_file($scriptPath)) {
-            $output = [];
-            exec("php " . escapeshellarg($scriptPath) . " --enriquecer 2>&1", $output, $returnVar);
-            $outputStr = implode("\n", $output);
-            
-            if (preg_match('/Enriquecidas:\s*(\d+)/', $outputStr, $enriquecidas) &&
-                preg_match('/Sin resultados:\s*(\d+)/', $outputStr, $fallidas)) {
-                $message = "TMDB actualizado: {$enriquecidas[1]} enriquecidas, {$fallidas[1]} sin resultados.";
-            } else {
-                $message = 'Sincronización con TMDB completada.';
-            }
-            $messageType = 'success';
-        } else {
-            $message = 'Error: script de actualización no encontrado.';
+            $message = 'Error al iniciar el proceso. Intenta nuevamente.';
             $messageType = 'error';
         }
     }
@@ -183,6 +161,25 @@ require_once '../includes/header.php';
             </form>
         </div>
     </div>
+    
+    <!-- Panel de estado del trabajo en segundo plano -->
+    <div id="work-status-panel" style="display:none; background:rgba(0,0,0,0.85); border:2px solid #00d4ff; border-radius:12px; padding:20px; margin:20px 0; animation:slideDown 0.3s ease;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div style="display:flex; align-items:center;">
+                <div class="work-spinner"></div>
+                <strong id="work-status-text" style="font-size:1.1rem; color:#00d4ff;">Procesando...</strong>
+            </div>
+            <button id="btn-cancel-work" class="btn-cancel-work" type="button">Cancelar</button>
+        </div>
+        <div class="work-progress-bar">
+            <div id="work-progress-fill" class="work-progress-fill" style="width:0%"></div>
+        </div>
+        <div style="text-align:right; font-size:14px; color:rgba(255,255,255,0.7);">
+            <span id="work-progress-percent">0%</span>
+        </div>
+        <div id="work-details" class="work-details"></div>
+        <div id="work-results" style="margin-top:15px;"></div>
+    </div>
 </div>
 
 <style>
@@ -276,6 +273,268 @@ require_once '../includes/header.php';
 .btn-update-tmdb:hover {
     background: #ee5a5a;
 }
+
+/* Panel de estado del trabajo */
+#work-status-panel {
+    background: rgba(0,0,0,0.85);
+    border: 2px solid #00d4ff;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.work-spinner {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    border: 3px solid rgba(0,212,255,0.3);
+    border-top-color: #00d4ff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 10px;
+    vertical-align: middle;
+}
+
+.work-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.work-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00d4ff, #00ff88);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.work-details {
+    font-size: 14px;
+    color: rgba(255,255,255,0.7);
+    margin-top: 10px;
+}
+
+.work-details span {
+    color: #00d4ff;
+    font-weight: bold;
+}
+
+.btn-cancel-work {
+    background: rgba(255,107,107,0.2);
+    border: 1px solid #ff6b6b;
+    color: #ff6b6b;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: all 0.2s;
+}
+
+.btn-cancel-work:hover {
+    background: rgba(255,107,107,0.4);
+}
+
+.work-complete {
+    border-color: #00ff88;
+}
+
+.work-complete .work-spinner {
+    border-color: rgba(0,255,136,0.3);
+    border-top-color: #00ff88;
+}
+
+.work-failed {
+    border-color: #ff6b6b;
+}
+
+.work-failed .work-spinner {
+    border-color: rgba(255,107,107,0.3);
+    border-top-color: #ff6b6b;
+}
+
+.work-output {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: rgba(255,255,255,0.8);
+    white-space: pre-wrap;
+}
 </style>
 
-<?php require_once '../includes/footer.php'; ?>
+<script>
+(function() {
+    const workId = <?php echo $_SESSION['current_work'] ?? 'null'; ?>;
+    if (!workId) return;
+    
+    const panel = document.getElementById('work-status-panel');
+    if (panel) panel.style.display = 'block';
+    
+    let pollInterval = null;
+    let pollCount = 0;
+    const maxPolls = 600; // 10 minutos a 1 segundo
+    
+    function pollStatus() {
+        if (pollCount >= maxPolls) {
+            stopPolling('Tiempo de espera agotado. Recarga la página para ver el estado final.');
+            return;
+        }
+        
+        fetch('../scripts/api_work.php?action=status&id=' + encodeURIComponent(workId))
+            .then(r => r.json())
+            .then(data => {
+                updatePanel(data);
+                
+                if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+                    setTimeout(() => stopPolling(), 5000);
+                }
+            })
+            .catch(() => {
+                // Error de red, seguir intentando
+            });
+        
+        pollCount++;
+    }
+    
+    function updatePanel(data) {
+        const statusText = document.getElementById('work-status-text');
+        const progressFill = document.getElementById('work-progress-fill');
+        const progressPercent = document.getElementById('work-progress-percent');
+        const details = document.getElementById('work-details');
+        const results = document.getElementById('work-results');
+        
+        if (!statusText) return;
+        
+        statusText.textContent = getStatusMessage(data);
+        progressFill.style.width = (data.progress || 0) + '%';
+        progressPercent.textContent = Math.round(data.progress || 0) + '%';
+        
+        // Actualizar clases del panel
+        panel.classList.remove('work-complete', 'work-failed');
+        if (data.status === 'completed') panel.classList.add('work-complete');
+        if (data.status === 'failed') panel.classList.add('work-failed');
+        
+        // Mostrar detalles
+        if (details) {
+            let html = '';
+            if (data.status === 'running') {
+                html = `Iniciado: <span>${data.started_at || '-'}</span>`;
+                if (data.type === 'update_db') {
+                    html += ` | Tipo: <span>Actualización completa (BD + TMDB)</span>`;
+                } else {
+                    html += ` | Tipo: <span>Actualización TMDB</span>`;
+                }
+            } else if (data.status === 'completed') {
+                html = `Completado: <span>${data.finished_at || '-'}</span>`;
+                if (data.nuevas) html += ` | <span>Nuevas: ${data.nuevas}</span>`;
+                if (data.existente) html += ` | <span>Existentes: ${data.existente}</span>`;
+                if (data.enriquecidas) html += ` | <span>Enriquecidas TMDB: ${data.enriquecidas}</span>`;
+            } else if (data.status === 'failed') {
+                html = `<span style="color:#ff6b6b">Error</span>: ${data.error || 'Error desconocido'}`;
+            } else if (data.status === 'cancelled') {
+                html = `<span style="color:#ff6b6b">Cancelado</span>`;
+            }
+            details.innerHTML = html;
+        }
+        
+        // Mostrar resultados
+        if (results && data.status !== 'running') {
+            let html = '';
+            if (data.status === 'completed') {
+                html = `<div style="color:#00ff88">✅ Actualización completada exitosamente</div>`;
+                if (data.nuevas) html += `📁 Nuevas: <strong>${data.nuevas}</strong> | `;
+                if (data.existente) html += `📁 Existentes: <strong>${data.existente}</strong> | `;
+                if (data.enriquecidas) html += `🎬 TMDB: <strong>${data.enriquecidas}</strong> enriquecidas`;
+                results.innerHTML = html;
+            } else if (data.status === 'failed' && data.output) {
+                results.innerHTML = '<div class="work-output">' + escapeHtml(data.output) + '</div>';
+            }
+        }
+    }
+    
+    function getStatusMessage(data) {
+        switch(data.status) {
+            case 'queued': return '⏳ En cola...';
+            case 'running': return '⚙️ Procesando...';
+            case 'completed': return '✅ Completado';
+            case 'failed': return '❌ Error';
+            case 'cancelled': return '⛔ Cancelado';
+            default: return '⏳ Procesando...';
+        }
+    }
+    
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+    
+    function stopPolling(message) {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+        }
+        const spinner = document.querySelector('.work-spinner');
+        if (spinner) spinner.style.animation = 'none';
+    }
+    
+    // Mostrar panel
+    const existingPanel = document.getElementById('work-status-panel');
+    if (existingPanel) existingPanel.style.display = 'block';
+    
+    // Primera consulta inmediata
+    pollStatus();
+    
+    // Polling: 1 seg durante primeros 30 seg, luego 2 seg, luego 5 seg
+    let delay = 1000;
+    pollInterval = setInterval(pollStatus, delay);
+    
+    // Ajustar delay dinámicamente
+    let elapsed = 0;
+    setInterval(() => {
+        elapsed += delay;
+        if (elapsed > 30000 && delay === 1000) {
+            clearInterval(pollInterval);
+            pollInterval = setInterval(pollStatus, 2000);
+        } else if (elapsed > 120000 && delay === 2000) {
+            clearInterval(pollInterval);
+            pollInterval = setInterval(pollStatus, 5000);
+        }
+    }, 1000);
+    
+    // Botón cancelar
+    const cancelBtn = document.getElementById('btn-cancel-work');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function() {
+            if (!confirm('¿Cancelar el trabajo en ejecución?')) return;
+            fetch('../scripts/api_work.php?action=cancel&id=' + encodeURIComponent(workId))
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        pollStatus();
+                    } else {
+                        alert(data.error || 'Error al cancelar');
+                    }
+                });
+        });
+    }
+})();
+</script>
