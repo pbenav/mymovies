@@ -39,12 +39,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
     
     if ($_POST['action'] === 'update_db' || $_POST['action'] === 'update_tmdb') {
-        // Redirigir al script de ejecución con streaming
+        // Abrir en nueva pestaña para evitar timeout del navegador
         $type = $_POST['action'] === 'update_db' ? 'update_db' : 'update_tmdb';
-        $redirectUrl = '../scripts/run_update.php?action=run&type=' . urlencode($type);
-        $_SESSION['pending_redirect'] = $redirectUrl;
-        header('Location: ../scripts/run_update.php?action=run&type=' . urlencode($type));
-        exit;
+        $url = '../scripts/run_update.php?action=run&type=' . urlencode($type);
+        $_SESSION['pending_redirect'] = $url;
+        ?>
+        <script>
+            window.open('../scripts/run_update.php?action=run&type=<?php echo urlencode($type); ?>', '_blank');
+            document.getElementById('settings-form').reset();
+        </script>
+        <?php
     }
 }
 
