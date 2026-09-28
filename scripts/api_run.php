@@ -7,6 +7,12 @@
  */
 
 header('Content-Type: application/json');
+header('X-Content-Type-Options: nosniff');
+
+// Prevenir timeout del navegador y PHP
+set_time_limit(0);
+ini_set('max_execution_time', '0');
+ini_set('memory_limit', '512M');
 
 // Crear work dir
 $workDir = __DIR__ . '/../work/';

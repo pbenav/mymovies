@@ -414,7 +414,7 @@ function runUpdate(type) {
     }, 1000);
     
     // Llamar al endpoint AJAX
-    fetch('../scripts/api_run.php?action=run&type=' + encodeURIComponent(type))
+    fetch('/scripts/api_run.php?action=run&type=' + encodeURIComponent(type))
         .then(function(r) { return r.json(); })
         .then(function(data) {
             clearInterval(progressInterval);
