@@ -39,14 +39,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
     
     if ($_POST['action'] === 'update_db' || $_POST['action'] === 'update_tmdb') {
-        // Abrir en nueva pestaña para evitar timeout del navegador
+        // Ejecutar directamente (el proceso se maneja en el frontend con SweetAlert2)
         $type = $_POST['action'] === 'update_db' ? 'update_db' : 'update_tmdb';
-        $url = '../scripts/run_update.php?action=run&type=' . urlencode($type);
-        $_SESSION['pending_redirect'] = $url;
+        
+        // Guardar el tipo para mostrar en el modal
+        $_SESSION['pending_update'] = $type;
+        
+        // Mostrar mensaje de confirmación con SweetAlert2
         ?>
         <script>
-            window.open('../scripts/run_update.php?action=run&type=<?php echo urlencode($type); ?>', '_blank');
-            document.getElementById('settings-form').reset();
+        document.addEventListener('DOMContentLoaded', function() {
+            Swal.fire({
+                icon: 'info',
+                title: 'Actualización iniciada',
+                text: 'El proceso se está ejecutando en segundo plano. No cierres esta página.',
+                confirmButtonText: 'Entendido',
+                background: '#1a1a2e',
+                color: '#fff',
+                confirmButtonColor: '#00d4ff'
+            });
+        });
         </script>
         <?php
     }
@@ -134,21 +146,15 @@ require_once '../includes/header.php';
         <h2>Acciones del Sistema</h2>
         
         <div class="action-buttons">
-            <form method="POST" action="settings.php" onsubmit="return confirm('¿Actualizar la base de datos con las migraciones pendientes?');">
-                <input type="hidden" name="action" value="update_db">
-                <button type="submit" class="btn-action btn-update-db">
-                    🗄️ Actualizar Base de Datos
-                </button>
-                <small class="config-desc">Ejecutar migraciones pendientes</small>
-            </form>
+            <button type="button" class="btn-action btn-update-db" onclick="runUpdate('update_db')">
+                🗄️ Actualizar Base de Datos
+            </button>
+            <small class="config-desc">Ejecutar migraciones pendientes</small>
             
-            <form method="POST" action="settings.php" onsubmit="return confirm('¿Iniciar la sincronización de metadatos con TMDB? Esto puede tardar unos minutos.');">
-                <input type="hidden" name="action" value="update_tmdb">
-                <button type="submit" class="btn-action btn-update-tmdb">
-                    🎬 Actualizar Metadatos TMDB
-                </button>
-                <small class="config-desc">Sincronizar películas con TMDB</small>
-            </form>
+            <button type="button" class="btn-action btn-update-tmdb" onclick="runUpdate('update_tmdb')">
+                🎬 Actualizar Metadatos TMDB
+            </button>
+            <small class="config-desc">Sincronizar películas con TMDB</small>
         </div>
     </div>
     
@@ -371,158 +377,106 @@ require_once '../includes/header.php';
 </style>
 
 <script>
-(function() {
-    const panel = document.getElementById('work-status-panel');
-    if (!panel) return;
-    panel.style.display = 'block';
+function runUpdate(type) {
+    const typeName = type === 'update_db' ? 'Base de Datos' : 'Metadatos TMDB';
+    const icon = type === 'update_db' ? '🗄️' : '🎬';
     
-    const statusText = document.getElementById('work-status-text');
-    const progressFill = document.getElementById('work-progress-fill');
-    const progressPercent = document.getElementById('work-progress-percent');
-    const details = document.getElementById('work-details');
-    const results = document.getElementById('work-results');
-    const cancelBtn = document.getElementById('btn-cancel-work');
-    if (cancelBtn) cancelBtn.style.display = 'none';
-    
-    // Conectar al stream de ejecución
-    const url = '../scripts/run_update.php?action=run&type=' + (window.location.search.includes('update_tmdb') ? 'update_tmdb' : 'update_db');
-    
-    const evtSource = new EventSource(url);
-    
-    evtSource.onmessage = function(event) {
-        const data = JSON.parse(event.data);
-        updatePanel(data);
-        
-        if (data.status === 'done') {
-            evtSource.close();
+    // Mostrar modal de carga con SweetAlert2
+    Swal.fire({
+        title: icon + ' Actualizando ' + typeName + '...',
+        html: '<div style="text-align:center;">' +
+              '<div style="width:100%;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;margin:20px 0;">' +
+              '<div id="swal-progress" style="height:100%;width:0%;background:linear-gradient(90deg,#00d4ff,#00ff88);border-radius:4px;transition:width 0.5s;"></div>' +
+              '</div>' +
+              '<div id="swal-status" style="color:rgba(255,255,255,0.7);font-size:14px;">Iniciando...</div>' +
+              '</div>',
+        showConfirmButton: false,
+        showCloseButton: true,
+        allowOutsideClick: false,
+        background: '#1a1a2e',
+        color: '#fff',
+        customClass: {
+            popup: 'swal-dark'
         }
-    };
+    });
     
-    evtSource.onerror = function(err) {
-        console.error('EventSource falló', err);
-        if (statusText) {
-            statusText.textContent = '❌ Conexión perdida';
-        }
-    };
-    
-    function updatePanel(data) {
-        if (!statusText) return;
-        
-        statusText.textContent = getStatusMessage(data);
-        progressFill.style.width = (data.progress || 0) + '%';
-        progressPercent.textContent = Math.round(data.progress || 0) + '%';
-        
-        panel.classList.remove('work-complete', 'work-failed');
-        if (data.status === 'completed') panel.classList.add('work-complete');
-        if (data.status === 'failed') panel.classList.add('work-failed');
-        
-        if (details) {
-            let html = '';
-            if (data.status === 'processing') {
-                html = `Procesando... <span>${data.progress || 0}%</span>`;
-            } else if (data.status === 'completed') {
-                html = `Completado: <span>${data.finished_at || '-'}</span>`;
-                if (data.nuevas) html += ` | <span>Nuevas: ${data.nuevas}</span>`;
-                if (data.existente) html += ` | <span>Existentes: ${data.existente}</span>`;
-                if (data.enriquecidas) html += ` | <span>Enriquecidas TMDB: ${data.enriquecidas}</span>`;
-            } else if (data.status === 'failed') {
-                html = `<span style="color:#ff6b6b">Error</span>: ${data.error || 'Error desconocido'}`;
-            }
-            details.innerHTML = html;
-        }
-        
-        if (results) {
-            let html = '';
-            if (data.status === 'completed') {
-                html = `<div style="color:#00ff88">✅ Actualización completada exitosamente</div>`;
-                if (data.nuevas) html += `📁 Nuevas: <strong>${data.nuevas}</strong> | `;
-                if (data.existente) html += `📁 Existentes: <strong>${data.existente}</strong> | `;
-                if (data.enriquecidas) html += `🎬 TMDB: <strong>${data.enriquecidas}</strong> enriquecidas`;
-                results.innerHTML = html;
-            } else if (data.status === 'failed' && data.output) {
-                results.innerHTML = '<div class="work-output">' + escapeHtml(data.output) + '</div>';
+    // Actualizar progreso cada segundo
+    let progressInterval = setInterval(function() {
+        const bar = document.getElementById('swal-progress');
+        const status = document.getElementById('swal-status');
+        if (bar) {
+            const current = parseFloat(bar.style.width) || 0;
+            if (current < 90) {
+                bar.style.width = (current + 5) + '%';
             }
         }
-    }
+        if (status) status.textContent = 'Procesando...';
+    }, 1000);
     
-    function getStatusMessage(data) {
-        switch(data.status) {
-            case 'starting': return '⏳ Iniciando...';
-            case 'processing': return '⚙️ Procesando...';
-            case 'completed': return '✅ Completado';
-            case 'failed': return '❌ Error';
-            case 'done': return '✅ Completado';
-            default: return '⏳ Procesando...';
-        }
-    }
-    
-    function escapeHtml(str) {
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-    }
-    
-    function updatePanel(data) {
-        const statusText = document.getElementById('work-status-text');
-        const progressFill = document.getElementById('work-progress-fill');
-        const progressPercent = document.getElementById('work-progress-percent');
-        const details = document.getElementById('work-details');
-        const results = document.getElementById('work-results');
-        
-        if (!statusText) return;
-        
-        statusText.textContent = getStatusMessage(data);
-        progressFill.style.width = (data.progress || 0) + '%';
-        progressPercent.textContent = Math.round(data.progress || 0) + '%';
-        
-        panel.classList.remove('work-complete', 'work-failed');
-        if (data.status === 'completed') panel.classList.add('work-complete');
-        if (data.status === 'failed') panel.classList.add('work-failed');
-        
-        if (details) {
-            let html = '';
-            if (data.status === 'processing') {
-                html = `Procesando... <span>${data.progress || 0}%</span>`;
-            } else if (data.status === 'completed') {
-                html = `Completado: <span>${data.finished_at || '-'}</span>`;
-                if (data.nuevas) html += ` | <span>Nuevas: ${data.nuevas}</span>`;
-                if (data.existente) html += ` | <span>Existentes: ${data.existente}</span>`;
-                if (data.enriquecidas) html += ` | <span>Enriquecidas TMDB: ${data.enriquecidas}</span>`;
-            } else if (data.status === 'failed') {
-                html = `<span style="color:#ff6b6b">Error</span>: ${data.error || 'Error desconocido'}`;
-            }
-            details.innerHTML = html;
-        }
-        
-        if (results) {
-            let html = '';
-            if (data.status === 'completed') {
-                html = `<div style="color:#00ff88">✅ Actualización completada exitosamente</div>`;
-                if (data.nuevas) html += `📁 Nuevas: <strong>${data.nuevas}</strong> | `;
-                if (data.existente) html += `📁 Existentes: <strong>${data.existente}</strong> | `;
-                if (data.enriquecidas) html += `🎬 TMDB: <strong>${data.enriquecidas}</strong> enriquecidas`;
-                results.innerHTML = html;
-            } else if (data.status === 'failed' && data.output) {
-                results.innerHTML = '<div class="work-output">' + escapeHtml(data.output) + '</div>';
-            }
-        }
-    }
-    
-    function getStatusMessage(data) {
-        switch(data.status) {
-            case 'starting': return '⏳ Iniciando...';
-            case 'processing': return '⚙️ Procesando...';
-            case 'completed': return '✅ Completado';
-            case 'failed': return '❌ Error';
-            case 'done': return '✅ Completado';
-            default: return '⏳ Procesando...';
-        }
-    }
-    
-    function escapeHtml(str) {
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-    }
-})();
+    // Llamar al endpoint AJAX
+    fetch('../scripts/api_run.php?action=run&type=' + encodeURIComponent(type))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            clearInterval(progressInterval);
+            
+            const bar = document.getElementById('swal-progress');
+            const status = document.getElementById('swal-status');
+            if (bar) bar.style.width = '100%';
+            if (status) status.textContent = 'Completado!';
+            
+            setTimeout(function() {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Actualización completada',
+                        html: '<div style="text-align:left;">' +
+                              '<p>Completado: <strong>' + (data.finished_at || 'ahora') + '</strong></p>' +
+                              (data.nuevas ? '<p>📁 Nuevas: <strong>' + data.nuevas + '</strong></p>' : '') +
+                              (data.existente ? '<p>📁 Existentes: <strong>' + data.existente + '</strong></p>' : '') +
+                              (data.enriquecidas ? '<p>🎬 TMDB enriquecidas: <strong>' + data.enriquecidas + '</strong></p>' : '') +
+                              '</div>',
+                        background: '#1a1a2e',
+                        color: '#fff',
+                        confirmButtonColor: '#00d4ff',
+                        customClass: {
+                            popup: 'swal-dark'
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error en la actualización',
+                        html: '<p>' + (data.error || 'Error desconocido') + '</p>' +
+                              (data.output ? '<pre style="background:rgba(0,0,0,0.5);padding:10px;border-radius:6px;margin-top:10px;max-height:200px;overflow:auto;font-size:12px;">' + escapeHtml(data.output) + '</pre>' : ''),
+                        background: '#1a1a2e',
+                        color: '#fff',
+                        confirmButtonColor: '#ff6b6b',
+                        customClass: {
+                            popup: 'swal-dark'
+                        }
+                    });
+                }
+            }, 500);
+        })
+        .catch(function(err) {
+            clearInterval(progressInterval);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de conexión',
+                text: 'No se pudo conectar con el servidor',
+                background: '#1a1a2e',
+                color: '#fff',
+                confirmButtonColor: '#ff6b6b',
+                customClass: {
+                    popup: 'swal-dark'
+                }
+            });
+        });
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
 </script>

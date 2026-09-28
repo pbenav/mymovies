@@ -26,6 +26,30 @@ $root = '/';
     <?php if (isset($extra_css)): ?>
         <?= $extra_css ?>
     <?php endif; ?>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .swal-dark {
+            background: #1a1a2e !important;
+            color: #fff !important;
+        }
+        .swal-dark .swal2-popup {
+            background: #1a1a2e !important;
+            border: 1px solid #333 !important;
+        }
+        .swal-dark .swal2-title {
+            color: #fff !important;
+        }
+        .swal-dark .swal2-html-container {
+            color: #e0e0e0 !important;
+        }
+        .swal-dark .swal2-footer {
+            border-color: #333 !important;
+            color: #e0e0e0 !important;
+        }
+        .swal-dark .swal2-close {
+            color: #fff !important;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -74,3 +98,26 @@ $root = '/';
         </nav>
     </header>
     <main>
+<?php
+// Mostrar mensajes flash
+if (isset($_SESSION['flash_message'])):
+?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    Swal.fire({
+        icon: '<?php echo $_SESSION['flash_type'] === 'error' ? 'error' : ($_SESSION['flash_type'] === 'success' ? 'success' : 'info'); ?>',
+        title: '<?php echo addslashes($_SESSION['flash_title'] ?? ''); ?>',
+        text: '<?php echo addslashes($_SESSION['flash_message']); ?>',
+        confirmButtonText: 'Aceptar',
+        background: '#1a1a2e',
+        color: '#fff',
+        confirmButtonColor: '#00d4ff',
+        customClass: {
+            popup: 'swal-dark'
+        }
+    });
+    <?php unset($_SESSION['flash_message'], $_SESSION['flash_type'], $_SESSION['flash_title']); ?>
+});
+</script>
+<?php endif; ?>
+</main>
